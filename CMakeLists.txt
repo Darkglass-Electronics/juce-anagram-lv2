@@ -45,17 +45,25 @@ function(juce_anagram_lv2_setup TARGET)
   set(multiValueArgs TODO2)
   cmake_parse_arguments(_anagram_juce_plugin "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  # disable superfulous Linux deps that we will never use
-  target_compile_definitions(${TARGET}
-    PUBLIC
-      JUCE_ALSA=0
-      JUCE_JACK=0
-      JUCE_USE_CURL=0
-      JUCE_USE_XCURSOR=0
-      JUCE_USE_XINERAMA=0
-      JUCE_USE_XRANDR=0
-      JUCE_USE_XSHM=0
-  )
+  # disable superfulous Linux deps that we will never use, use system zlib
+  if(CMAKE_CROSSCOMPILING_EMULATOR)
+    target_compile_definitions(${TARGET}
+      PUBLIC
+        JUCE_ALSA=0
+        JUCE_JACK=0
+        JUCE_USE_CURL=0
+        JUCE_USE_XCURSOR=0
+        JUCE_USE_XINERAMA=0
+        JUCE_USE_XRANDR=0
+        JUCE_USE_XSHM=0
+        JUCE_INCLUDE_ZLIB_CODE=0
+    )
+
+    target_link_libraries(${TARGET}
+      PUBLIC
+        z
+    )
+  endif()
 
   # add ourselves to the include directories, so we can override JUCE files
   target_include_directories(${TARGET}
@@ -77,9 +85,7 @@ function(juce_anagram_lv2_setup TARGET)
   )
 
   # do not use "lib" prefix for plugin binaries
-  set_target_properties(${TARGET}_LV2
-    PROPERTIES
-      PREFIX "")
+  set_target_properties(${TARGET}_LV2 PROPERTIES PREFIX "")
 endfunction()
 
 # ---------------------------------------------------------------------------------------------------------------------
