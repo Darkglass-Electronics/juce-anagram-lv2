@@ -45,8 +45,12 @@ function(juce_anagram_lv2_setup TARGET)
   set(multiValueArgs TODO2)
   cmake_parse_arguments(_anagram_juce_plugin "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  # disable superfulous Linux deps that we will never use, use system zlib
+  # disable superfulous Linux deps that we will never use, use system libs
   if(CMAKE_CROSSCOMPILING_EMULATOR)
+    find_package(PkgConfig)
+    pkg_check_modules(zlib IMPORTED_TARGET zlib REQUIRED)
+    pkg_check_modules(libpng IMPORTED_TARGET libpng REQUIRED)
+
     target_compile_definitions(${TARGET}
       PUBLIC
         JUCE_ALSA=0
@@ -56,12 +60,14 @@ function(juce_anagram_lv2_setup TARGET)
         JUCE_USE_XINERAMA=0
         JUCE_USE_XRANDR=0
         JUCE_USE_XSHM=0
+        JUCE_INCLUDE_PNGLIB_CODE=0
         JUCE_INCLUDE_ZLIB_CODE=0
     )
 
     target_link_libraries(${TARGET}
       PUBLIC
-        z
+        PkgConfig::libpng
+        PkgConfig::zlib
     )
   endif()
 
