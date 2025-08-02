@@ -26,6 +26,8 @@ FetchContent_Declare(JUCE
   GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
   GIT_TAG 8.0.8
   GIT_SHALLOW TRUE
+  PATCH_COMMAND patch -p1 -i "${PROJECT_SOURCE_DIR}/../cross-compilation-patches/v8.0.8.patch"
+  UPDATE_DISCONNECTED TRUE
 )
 FetchContent_MakeAvailable(JUCE)
 
@@ -75,8 +77,3 @@ target_sources(DarkglassExample
     PRIVATE
         PluginProcessor.cpp
 )
-
-#LV2_CATEGORIES "Instrument Synth Stereo"
-
-#PLUGIN_CODE Expl
-#PLUGIN_MANUFACTURER_CODE Drkg

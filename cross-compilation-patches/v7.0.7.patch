@@ -1,0 +1,54 @@
+diff --git a/extras/Build/CMake/JUCEUtils.cmake b/extras/Build/CMake/JUCEUtils.cmake
+index 9eaacd22b..55dfe5bbf 100644
+--- a/extras/Build/CMake/JUCEUtils.cmake
++++ b/extras/Build/CMake/JUCEUtils.cmake
+@@ -1021,10 +1021,11 @@ function(juce_enable_vst3_manifest_step shared_code_target)
+     get_target_property(target_version_string ${shared_code_target} JUCE_VERSION)
+ 
+     # Use the helper tool to write out the moduleinfo.json
++    separate_arguments(CMAKE_CROSSCOMPILING_EMULATOR)
+     add_custom_command(TARGET ${target_name} POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E remove -f "${product}/Contents/moduleinfo.json"
+         COMMAND ${CMAKE_COMMAND} -E make_directory "${product}/Contents/Resources"
+-        COMMAND juce_vst3_helper
++        COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} juce_vst3_helper
+             -create
+             -version "${target_version_string}"
+             -path "${product}"
+@@ -1181,8 +1182,9 @@ function(_juce_set_plugin_target_properties shared_code_target kind)
+ 
+         _juce_add_lv2_manifest_helper_target()
+ 
++        separate_arguments(CMAKE_CROSSCOMPILING_EMULATOR)
+         add_custom_command(TARGET ${target_name} POST_BUILD
+-            COMMAND juce_lv2_helper "$<TARGET_FILE:${target_name}>"
++            COMMAND ${CMAKE_CROSSCOMPILING_EMULATOR} juce_lv2_helper "$<TARGET_FILE:${target_name}>"
+             VERBATIM)
+ 
+         _juce_set_copy_properties(${shared_code_target} ${target_name} "${output_path}" JUCE_LV2_COPY_DIR)
+diff --git a/extras/Build/juceaide/CMakeLists.txt b/extras/Build/juceaide/CMakeLists.txt
+index 245f47f1b..3a8bcddf0 100644
+--- a/extras/Build/juceaide/CMakeLists.txt
++++ b/extras/Build/juceaide/CMakeLists.txt
+@@ -34,7 +34,11 @@ if(JUCE_BUILD_HELPER_TOOLS)
+ 
+     target_compile_definitions(juceaide PRIVATE
+         JUCE_DISABLE_JUCE_VERSION_PRINTING=1
+-        JUCE_USE_CURL=0)
++        JUCE_USE_CURL=0
++        JUCE_USE_XCURSOR=0
++        JUCE_USE_XINERAMA=0
++        JUCE_USE_XRANDR=0
++        JUCE_USE_XSHM=0)
+ 
+     target_link_libraries(juceaide PRIVATE
+         juce::juce_build_tools
+@@ -59,7 +63,7 @@ else()
+     # for cross-compiling, and we'll need to attempt to put it back to the
+     # host settings in order to build an executable that can run on the host
+     # machine.
+-    if(CMAKE_CROSSCOMPILING)
++    if(CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
+         unset(ENV{ADDR2LINE})
+         unset(ENV{AR})
+         unset(ENV{ASM})
