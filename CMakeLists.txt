@@ -48,8 +48,8 @@ function(juce_anagram_lv2_setup TARGET)
   # disable superfulous Linux deps that we will never use, use system libs
   if(CMAKE_CROSSCOMPILING_EMULATOR)
     find_package(PkgConfig)
-    pkg_check_modules(zlib IMPORTED_TARGET zlib REQUIRED)
     pkg_check_modules(libpng IMPORTED_TARGET libpng REQUIRED)
+    pkg_check_modules(zlib IMPORTED_TARGET zlib REQUIRED)
 
     target_compile_definitions(${TARGET}
       PUBLIC

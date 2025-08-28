@@ -47,7 +47,7 @@ public:
             return;
         }
 
-       #if defined (JucePlugin_PreferredChannelConfigurations)
+       #ifdef JucePlugin_PreferredChannelConfigurations
         constexpr int configs[][2] = { JucePlugin_PreferredChannelConfigurations };
         filter->setPlayConfigDetails (configs[0][0], configs[0][1], sampleRate, bufferSize);
        #else
@@ -283,7 +283,7 @@ static int doRecall(const char* libraryPath)
 {
     std::unique_ptr<AudioProcessor> filter = createPluginFilterOfType (AudioProcessor::wrapperType_LV2);
 
-   #if defined (JucePlugin_PreferredChannelConfigurations)
+   #ifdef JucePlugin_PreferredChannelConfigurations
     constexpr int configs[][2] = { JucePlugin_PreferredChannelConfigurations };
     filter->setPlayConfigDetails (configs[0][0], configs[0][1], 48000.0, 16);
    #else
