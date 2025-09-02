@@ -78,6 +78,11 @@ function(juce_anagram_lv2_setup TARGET)
   )
 
   # disable official JUCE LV2 wrapper
+  get_target_property(module_path juce::juce_audio_plugin_client INTERFACE_JUCE_MODULE_PATH)
+  target_compile_definitions(${TARGET}
+    PUBLIC
+      juce_CheckSettingMacros_h="${module_path}/juce_audio_plugin_client/detail/juce_CheckSettingMacros.h"
+  )
   target_compile_options(${TARGET}_LV2
     PUBLIC
       -UJucePlugin_Build_LV2

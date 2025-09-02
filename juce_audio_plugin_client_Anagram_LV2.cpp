@@ -73,19 +73,19 @@ public:
         host.logger = logger;
         host.uridMap = uridMap;
 
-        ports.audioIns.resize(numInputs);
-        ports.audioOuts.resize(numOutputs);
-        ports.controls.resize(numControls);
-        lastControlValues.resize(numControls);
+        ports.audioIns.resize(static_cast<size_t> (numInputs));
+        ports.audioOuts.resize(static_cast<size_t> (numOutputs));
+        ports.controls.resize(static_cast<size_t> (numControls));
+        lastControlValues.resize(static_cast<size_t> (numControls));
 
         for (int i = 0; i < numControls; ++i)
         {
             AudioProcessorParameter* const parameter = parameters.getUnchecked (i);
 
             if (auto* rangedParameter = dynamic_cast<const RangedAudioParameter*> (parameter))
-                lastControlValues[i] = rangedParameter->convertFrom0to1 (rangedParameter->getValue());
+                lastControlValues.setUnchecked(i, rangedParameter->convertFrom0to1 (rangedParameter->getValue()));
             else
-                lastControlValues[i] = parameter->getValue();
+                lastControlValues.setUnchecked(i, parameter->getValue());
         }
 
         if (bypassParameter = filter->getBypassParameter(); bypassParameter != nullptr)
@@ -98,18 +98,18 @@ public:
     {
     }
 
-    void connect(uint32_t port, void* data)
+    void connect(int port, void* data)
     {
         if (port < numInputs)
         {
-            ports.audioIns[port] = static_cast<const float*> (data);
+            ports.audioIns.setUnchecked(port, static_cast<const float*> (data));
             return;
         }
         port -= numInputs;
 
         if (port < numOutputs)
         {
-            ports.audioOuts[port] = static_cast<float*> (data);
+            ports.audioOuts.setUnchecked(port, static_cast<float*> (data));
             return;
         }
         port -= numOutputs;
@@ -142,7 +142,7 @@ public:
 
         if (port < numControls)
         {
-            ports.controls[port] = static_cast<float*> (data);
+            ports.controls.setUnchecked(port, static_cast<float*> (data));
             return;
         }
         // port -= numControls;
@@ -163,7 +163,7 @@ public:
         filter->releaseResources();
     }
 
-    void run(uint32_t sampleCount)
+    void run(int sampleCount)
     {
         if (ports.reset != nullptr && *ports.reset > 0.5f)
             filter->reset();
@@ -201,15 +201,15 @@ public:
                 }
                 else
                 {
-                    if (ports.controls[i - offset] == nullptr)
+                    if (ports.controls.getUnchecked(i - offset) == nullptr)
                         continue;
-                    value = *ports.controls[i - offset];
+                    value = *ports.controls.getUnchecked(i - offset);
                 }
 
-                if (lastControlValues[i] == value)
+                if (approximatelyEqual(lastControlValues.getUnchecked(i), value))
                     continue;
 
-                lastControlValues[i] = value;
+                lastControlValues.setUnchecked(i, value);
 
                 if (auto* rangedParameter = dynamic_cast<const RangedAudioParameter*> (parameter))
                     value = rangedParameter->convertTo0to1 (value);
@@ -227,10 +227,8 @@ public:
                 audioBuffers[i] = ports.audioOuts[i];
 
                 if (i < numInputs && ports.audioIns[i] != ports.audioOuts[i])
-                    FloatVectorOperations::copy (ports.audioOuts[i], ports.audioIns[i], static_cast<int32_t> (sampleCount));
+                    FloatVectorOperations::copy (ports.audioOuts[i], ports.audioIns[i], sampleCount);
             }
-
-            // FIXME
             for (; i < numInputs; ++i)
                 audioBuffers[i] = const_cast<float*>(ports.audioIns[i]);
 
@@ -239,7 +237,19 @@ public:
             AudioSampleBuffer chans (audioBuffers, std::max (numInputs, numOutputs), sampleCount);
 
             const ScopedLock sl (filter->getCallbackLock());
-            filter->processBlock (chans, midiEvents);
+
+            if (filter->isSuspended())
+            {
+                for (i = 0; i < numOutputs; ++i)
+                    FloatVectorOperations::clear (ports.audioOuts[i], sampleCount);
+            }
+            else
+            {
+                if (ports.enabled == nullptr || *ports.enabled > 0.5f)
+                    filter->processBlock (chans, midiEvents);
+                else
+                    filter->processBlockBypassed (chans, midiEvents);
+            }
         }
     }
 
@@ -265,9 +275,9 @@ private:
     } host{};
 
     struct {
-        std::vector<const float*> audioIns;
-        std::vector<float*> audioOuts;
-        std::vector<float*> controls;
+        Array<const float*> audioIns;
+        Array<float*> audioOuts;
+        Array<float*> controls;
         const float* enabled = nullptr;
         const float* reset = nullptr;
         const float* freeWheel = nullptr;
@@ -276,7 +286,7 @@ private:
 
     HeapBlock<float*> audioBuffers;
     MidiBuffer midiEvents;
-    std::vector<float> lastControlValues; // includes bypass/enabled
+    Array<float> lastControlValues; // includes bypass/enabled
 };
 
 static int doRecall(const char* libraryPath)
@@ -423,7 +433,7 @@ static int doRecall(const char* libraryPath)
 
         AudioProcessorParameter* const bypassParameter = filter->getBypassParameter();
 
-        // Bypass/Enabled and Reset parameter
+        // Bypass/Enabled parameter
         ttl << "\tlv2:port [\n"
                "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
                "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
@@ -434,8 +444,10 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:maximum 1.0 ;\n"
                "\t\tlv2:designation lv2:enabled ;\n"
                "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;\n"
-               "\t] , [\n"
-               "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
+               "\t] , [\n";
+
+        // Reset parameter
+        ttl << "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
                "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
                "\t\tlv2:symbol \"lv2_reset\" ;\n"
                "\t\tlv2:name \"Reset\" ;\n"
@@ -520,7 +532,7 @@ LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
         JucePlugin_LV2URI,
         [] (const LV2_Descriptor*,
             double sampleRate,
-            const char* pathToBundle,
+            const char*,
             const LV2_Feature* const* features) -> LV2_Handle
         {
             // query optional and required LV2 features
@@ -571,7 +583,7 @@ LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
         },
         [] (LV2_Handle instance, uint32_t port, void* data)
         {
-            static_cast<JuceLv2Wrapper*> (instance)->connect(port, data);
+            static_cast<JuceLv2Wrapper*> (instance)->connect(static_cast<int> (port), data);
         },
         [] (LV2_Handle instance)
         {
@@ -579,7 +591,7 @@ LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
         },
         [] (LV2_Handle instance, uint32_t sampleCount)
         {
-            static_cast<JuceLv2Wrapper*> (instance)->run(sampleCount);
+            static_cast<JuceLv2Wrapper*> (instance)->run(static_cast<int> (sampleCount));
         },
         [] (LV2_Handle instance)
         {
