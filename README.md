@@ -14,9 +14,10 @@ As an extra, being an external codebase, it is able to get updates on a regular 
 
 This main change for this custom alternative LV2 wrapper is the use of Control Ports instead of the new "Patch Parameter" style. Plus:
 
- - disables regular X11 desktop UI (we do not use it)
- - only enables the specific features in use by the plugin (e.g. Atom port for time events)
- - has custom Anagram-specific parameter hints
+ - disables regular desktop UI (we do not use it)
+ - only enables the specific features in use by the plugin (e.g. Atom port only enabled if plugin needs time events)
+ - has custom Anagram-specific plugin and parameter meta-data
+ - is able to get updates on a regular basis without having to update the entire JUCE codebase
 
 ## Usage
 
