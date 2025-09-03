@@ -1,0 +1,13 @@
+diff --git a/extras/Build/juceaide/CMakeLists.txt b/extras/Build/juceaide/CMakeLists.txt
+index 34f1a7f5f..730458472 100644
+--- a/extras/Build/juceaide/CMakeLists.txt
++++ b/extras/Build/juceaide/CMakeLists.txt
+@@ -53,7 +53,7 @@ else()
+     # environment variables, which is unfortunate because we really don't want to cross-compile
+     # juceaide. If you really want to set the compilers for juceaide, pass the appropriate
+     # CMAKE_<lang>_COMPILER flags when configuring CMake.
+-    if(CMAKE_CROSSCOMPILING)
++    if(CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
+         unset(ENV{ASM})
+         unset(ENV{CC})
+         unset(ENV{CXX})

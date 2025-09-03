@@ -1,11 +1,11 @@
 diff --git a/extras/Build/juceaide/CMakeLists.txt b/extras/Build/juceaide/CMakeLists.txt
-index 163f203cc..89bb6e31e 100644
+index 422d8d093..d522447a2 100644
 --- a/extras/Build/juceaide/CMakeLists.txt
 +++ b/extras/Build/juceaide/CMakeLists.txt
-@@ -55,7 +55,7 @@ if(JUCE_BUILD_HELPER_TOOLS)
- else()
-     message(STATUS "Configuring juceaide")
- 
+@@ -57,7 +57,7 @@ else()
+     # for cross-compiling, and we'll need to attempt to put it back to the
+     # host settings in order to build an executable that can run on the host
+     # machine.
 -    if(CMAKE_CROSSCOMPILING)
 +    if(CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
          unset(ENV{ADDR2LINE})
