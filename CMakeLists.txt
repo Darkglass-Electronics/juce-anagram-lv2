@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: ISC
 
 # store current source dir for later usage
-option(JUCE_ANAGRAM_LV2_DIR "Root directory of the JUCE Anagram LV2 Wrapper project." "${CMAKE_CURRENT_SOURCE_DIR}")
+set(JUCE_ANAGRAM_LV2_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE STRING "Root directory of the JUCE Anagram LV2 Wrapper")
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Custom JUCE LV2 Wrapper for Darkglass Anagram
