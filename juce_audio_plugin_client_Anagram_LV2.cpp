@@ -17,6 +17,8 @@
 #include <juce_audio_processors/format_types/juce_LV2Common.h>
 #include <juce_audio_processors/format_types/juce_LegacyAudioParameter.cpp>
 
+#include "juce_anagram.h"
+
 #include <lv2/core/lv2_util.h>
 #include <lv2/log/logger.h>
 
@@ -63,7 +65,7 @@ public:
         bypassParameter = filter->getBypassParameter();
 
         // Stop here if filter has Anagram incompatible IO
-        if (numInputs < 1 || numOutputs < 1)
+        if (numInputs < 1 || numOutputs < 1 || numInputs > 2 || numOutputs > 2)
         {
             lv2_log_error (&logger, "Plugin filter has Anagram incompatible IO\n");
             return;
@@ -190,10 +192,9 @@ public:
 
         if (sampleCount == 0)
         {
-            /**
-               LV2 pre-roll
-               Hosts might use this to force plugins to update its output control ports.
-               (plugins can only access port locations during run) */
+            // LV2 pre-roll
+            // Hosts might use this to force plugins to update its output control ports.
+            // (plugins can only access port locations during run)
             return;
         }
 
@@ -202,7 +203,7 @@ public:
             const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
             float value;
 
-            for (int i = 0, offset = 0; i + offset < numControls; ++i)
+            for (int i = 0, offset = 0; i < numControls; ++i)
             {
                 AudioProcessorParameter* const parameter = parameters.getUnchecked (i);
 
@@ -228,12 +229,11 @@ public:
                 if (auto* rangedParameter = dynamic_cast<const RangedAudioParameter*> (parameter))
                     value = rangedParameter->convertTo0to1 (value);
 
-                parameter->setValue (value);
-                parameter->sendValueChangedMessageToListeners (value);
+                parameter->setValueNotifyingHost (value);
             }
         }
 
-        // process filter
+        // prepare audio buffers
         {
             int i;
             for (i = 0; i < numOutputs; ++i)
@@ -245,24 +245,25 @@ public:
             }
             for (; i < numInputs; ++i)
                 audioBuffers[i] = const_cast<float*>(ports.audioIns[i]);
+        }
 
-            midiEvents.clear();
+        // TODO send MIDI events as needed
+        midiEvents.clear();
 
+        // process filter
+        {
             AudioSampleBuffer chans (audioBuffers, std::max (numInputs, numOutputs), sampleCount);
 
             const ScopedLock sl (filter->getCallbackLock());
 
             if (filter->isSuspended())
             {
-                for (i = 0; i < numOutputs; ++i)
+                for (int i = 0; i < numOutputs; ++i)
                     FloatVectorOperations::clear (ports.audioOuts[i], sampleCount);
             }
             else
             {
-                if (ports.enabled == nullptr || *ports.enabled > 0.5f)
-                    filter->processBlock (chans, midiEvents);
-                else
-                    filter->processBlockBypassed (chans, midiEvents);
+                filter->processBlock (chans, midiEvents);
             }
         }
     }
@@ -307,6 +308,13 @@ static int doRecall(const char* libraryPath)
 {
     std::unique_ptr<AudioProcessor> filter = createPluginFilterOfType (AudioProcessor::wrapperType_LV2);
 
+    // Stop here if createPluginFilterOfType failed
+    if (filter == nullptr)
+    {
+        fprintf (stderr, "Failed to create plugin filter\n");
+        return 1;
+    }
+
    #ifdef JucePlugin_PreferredChannelConfigurations
     constexpr int configs[][2] = { JucePlugin_PreferredChannelConfigurations };
     filter->setPlayConfigDetails (configs[0][0], configs[0][1], 48000.0, 16);
@@ -315,8 +323,33 @@ static int doRecall(const char* libraryPath)
    #endif
     filter->refreshParameterList();
 
+    const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
     const int numInputs = filter->getTotalNumInputChannels();
     const int numOutputs = filter->getTotalNumOutputChannels();
+    const int numControls = parameters.size();
+
+    AudioProcessorParameter* const bypassParameter = filter->getBypassParameter();
+
+    // Stop here if filter has Anagram incompatible IO
+    if (numInputs < 1 || numOutputs < 1 || numInputs > 2 || numOutputs > 2)
+    {
+        fprintf (stderr, "Plugin filter has Anagram incompatible IO\n");
+        return 1;
+    }
+
+    // Stop here if filter is missing bypass parameter
+    if (bypassParameter == nullptr)
+    {
+        fprintf (stderr, "Plugin filter is missing bypass parameter, required for Anagram\n");
+        return 1;
+    }
+
+    // Stop here if filter has no parameters
+    if (numControls <= 1)
+    {
+        fprintf (stderr, "Plugin filter has no parameters, at least 1 is required for Anagram\n");
+        return 1;
+    }
 
     const String libraryPathString { CharPointer_UTF8 { libraryPath } };
 
@@ -324,7 +357,7 @@ static int doRecall(const char* libraryPath)
         ? File (libraryPathString)
         : File::getCurrentWorkingDirectory().getChildFile (libraryPathString);
 
-    //==============================================================================
+    //=================================================================================================================
     // Create the manifest.ttl file contents
 
     std::cout << "Writing manifest.ttl...";
@@ -350,7 +383,7 @@ static int doRecall(const char* libraryPath)
 
     std::cout << "done!" << std::endl;
 
-    //==============================================================================
+    //=================================================================================================================
     // Create the dsp.ttl file contents
 
     std::cout << "Writing dsp.ttl...";
@@ -370,6 +403,7 @@ static int doRecall(const char* libraryPath)
                "@prefix lv2:   <" LV2_CORE_PREFIX "> .\n"
                "@prefix opts:  <" LV2_OPTIONS_PREFIX "> .\n"
                "@prefix pprop: <http://lv2plug.in/ns/ext/port-props#> .\n"
+               "@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
                "@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .\n"
                "@prefix units: <" LV2_UNITS_PREFIX "> .\n"
                "@prefix urid:  <" LV2_URID_PREFIX "> .\n"
@@ -451,12 +485,6 @@ static int doRecall(const char* libraryPath)
             }
         }
 
-        // Parameters
-        const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
-        const int numControls = parameters.size();
-
-        AudioProcessorParameter* const bypassParameter = filter->getBypassParameter();
-
         // Bypass/Enabled parameter
         ttl << "\tlv2:port [\n"
                "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
@@ -479,21 +507,36 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:minimum 0.0 ;\n"
                "\t\tlv2:maximum 1.0 ;\n"
                "\t\tlv2:designation kx:Reset ;\n"
-               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI , pprop:trigger ;\n";
+               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI , pprop:trigger ;\n"
+               "\t] , [\n";
 
        #if JucePlugin_LV2WantsFreeWheel
-        // TODO
+        // Free Wheeling parameter
+        ttl << "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
+               "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
+               "\t\tlv2:symbol \"lv2_freeWheeling\" ;\n"
+               "\t\tlv2:name \"Free Wheeling\" ;\n"
+               "\t\tlv2:default 0.0 ;\n"
+               "\t\tlv2:minimum 0.0 ;\n"
+               "\t\tlv2:maximum 1.0 ;\n"
+               "\t\tlv2:designation lv2:freeWheeling ;\n"
+               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;\n"
+               "\t] , [\n";
        #endif
 
        #if JucePlugin_LV2WantsLatency
-        // TODO
+        // Latency parameter
+        ttl << "\t\ta lv2:OutputPort , lv2:ControlPort ;\n"
+               "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
+               "\t\tlv2:symbol \"lv2_latency\" ;\n"
+               "\t\tlv2:name \"Latency\" ;\n"
+               "\t\tlv2:designation lv2:latency ;\n"
+               "\t\tlv2:portProperty lv2:reportsLatency , lv2:integer , lv2:connectionOptional , pprop:notOnGUI ;\n"
+               "\t\tunits:unit units:frame ;\n"
+               "\t] , [\n";
        #endif
 
-        if (numControls - (bypassParameter != nullptr ? 1 : 0) == 0)
-            ttl << "\t] ;\n\n";
-        else
-            ttl << "\t] , [\n";
-
+        // regular parameters
         for (int i = 0, offset = 0; i < numControls; ++i)
         {
             AudioProcessorParameter* const parameter = parameters.getUnchecked(i);
@@ -510,26 +553,32 @@ static int doRecall(const char* libraryPath)
             // TODO ask Jesse the real param size
             String name = parameter->getName(32);
             if (name.isEmpty())
-                name = "Parameter" + String(i - offset + 1);
+                name = "Parameter " + String(i - offset + 1);
 
             ttl << "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
                    "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
                    "\t\tlv2:symbol \"" << symbol.toRawUTF8() << "\" ;\n"
                    "\t\tlv2:name \"" << name.replace("\"", "'").toRawUTF8() << "\" ;\n";
 
+            float min, max;
             if (const auto rangedParameter = dynamic_cast<const RangedAudioParameter*>(parameter))
             {
                 const NormalisableRange<float>& range = rangedParameter->getNormalisableRange();
+                min = range.start;
+                max = range.end;
 
-                ttl << "\t\tlv2:default " << std::to_string (rangedParameter->convertFrom0to1 (rangedParameter->getValue())) << " ;\n"
-                       "\t\tlv2:minimum " << std::to_string (range.start) << " ;\n"
-                       "\t\tlv2:maximum " << std::to_string (range.end) << " ;\n";
+                ttl << "\t\tlv2:default "
+                    << std::to_string (rangedParameter->convertFrom0to1 (rangedParameter->getValue())) << " ;\n"
+                       "\t\tlv2:minimum " << std::to_string (min) << " ;\n"
+                       "\t\tlv2:maximum " << std::to_string (max) << " ;\n";
 
                 if (rangedParameter->label == "dB")
                     ttl << "\t\tunits:unit units:db ;\n";
             }
             else
             {
+                min = 0.f;
+                max = 1.f;
                 ttl << "\t\tlv2:default " << std::to_string(parameter->getValue()) << " ;\n"
                        "\t\tlv2:minimum 0.0 ;\n"
                        "\t\tlv2:maximum 1.0 ;\n";
@@ -539,6 +588,49 @@ static int doRecall(const char* libraryPath)
                 ttl << "\t\tlv2:portProperty lv2:toggled ;\n";
             if (! parameter->isAutomatable())
                 ttl << "\t\tlv2:portProperty pprop:expensive ;\n";
+
+            if (const auto* anagramParameter = dynamic_cast<const anagram::AudioParameterWithScalePoints*> (parameter))
+            {
+                if (auto scalePoints = anagramParameter->getAllScalePoints(); ! scalePoints.isEmpty())
+                {
+                    ttl << "\t\tlv2:scalePoint [\n";
+
+                    bool first = true;
+                    for (const auto& scalePoint : scalePoints)
+                    {
+                        if (first)
+                            first = false;
+                        else
+                            ttl << "\t\t] , [\n";
+
+                        ttl << "\t\t\trdfs:label \"" << scalePoint.label.toRawUTF8() << "\" ;\n"
+                               "\t\t\trdf:value " << std::to_string (scalePoint.value) << " ;\n";
+                    }
+
+                    ttl << "\t\t] ;\n";
+                }
+            }
+            else if (int numSteps = parameter->getNumSteps(); parameter->isDiscrete() && numSteps >= 2)
+            {
+                if (const auto strings = parameter->getAllValueStrings(); ! strings.isEmpty())
+                {
+                    ttl << "\t\tlv2:portProperty lv2:enumeration ;\n"
+                           "\t\tlv2:scalePoint [\n";
+
+                    for (const auto [counter, string] : enumerate (strings))
+                    {
+                        const auto value = jmap<double> (counter, 0, numSteps - 1, min, max);
+
+                        if (counter != 0)
+                            ttl << "\t\t] , [\n";
+
+                        ttl << "\t\t\trdfs:label \"" << string.toRawUTF8() << "\" ;\n"
+                               "\t\t\trdf:value " << std::to_string (value) << " ;\n";
+                    }
+
+                    ttl << "\t\t] ;\n";
+                }
+            }
 
             if (i + 1 == numControls)
                 ttl << "\t] ;\n\n";
