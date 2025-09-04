@@ -548,7 +548,9 @@ static int doRecall(const char* libraryPath)
             }
 
             const String symbol = lv2_shared::sanitiseStringAsTtlName (
-                URL::addEscapeChars (LegacyAudioParameter::getParamID (parameter, false), true));
+                URL::addEscapeChars (LegacyAudioParameter::getParamID (parameter, false), true))
+                // mishandled in some JUCE versions, a '-' character is not allowed as symbol
+                .replace("-","_");
 
             // TODO ask Jesse the real param size
             String name = parameter->getName(32);
@@ -610,7 +612,8 @@ static int doRecall(const char* libraryPath)
                     ttl << "\t\t] ;\n";
                 }
             }
-            else if (int numSteps = parameter->getNumSteps(); parameter->isDiscrete() && numSteps >= 2)
+            else if (int numSteps = parameter->getNumSteps();
+                     parameter->isDiscrete() && ! parameter->isBoolean() && numSteps >= 2)
             {
                 if (const auto strings = parameter->getAllValueStrings(); ! strings.isEmpty())
                 {
