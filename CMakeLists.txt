@@ -30,19 +30,19 @@ include(CMakeParseArguments)
 # ---------------------------------------------------------------------------------------------------------------------
 # Arguments:
 #
-#   `ENABLE_LATENCY`
-#       enable latency control port
+#   `CATEGORY`
+#       a string URI for an LV2 category, can use "lv2:" suffix (e.g. "lv2:UtilityPlugin")
 #
 #   `ENABLE_FREEWHEEL`
 #       enable free-wheel control port (offline mode)
 #
-#   `ENABLE_TIMEPOS`
-#       enable receiving time position information through an LV2 Atom Sequence port
+#   `ENABLE_LATENCY`
+#       enable latency control port (reporting latency to host)
 #
 function(juce_anagram_lv2_setup TARGET)
-  set(options ENABLE_LATENCY ENABLE_FREEWHEEL ENABLE_TIMEPOS)
-  set(oneValueArgs TODO1)
-  set(multiValueArgs TODO2)
+  set(options ENABLE_LATENCY ENABLE_FREEWHEEL)
+  set(oneValueArgs CATEGORY)
+  set(multiValueArgs TODO)
   cmake_parse_arguments(_anagram_juce_plugin "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   # disable superfulous Linux deps that we will never use, use system libs
@@ -95,8 +95,30 @@ function(juce_anagram_lv2_setup TARGET)
       "${JUCE_ANAGRAM_LV2_DIR}/juce_audio_plugin_client_Anagram_LV2.cpp"
   )
 
+  # custom LV2 wrapper arguments
+  if (_anagram_juce_plugin_CATEGORY)
+    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2Category="${_anagram_juce_plugin_CATEGORY}")
+  endif()
+
+  if (_anagram_juce_plugin_ENABLE_FREEWHEEL)
+    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2WantsFreeWheel=1)
+  endif()
+
+  if (_anagram_juce_plugin_ENABLE_LATENCY)
+    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2WantsLatency=1)
+  endif()
+
   # do not use "lib" prefix for plugin binaries
   set_target_properties(${TARGET}_LV2 PROPERTIES PREFIX "")
+
+  # do not use spaces in output bundle and binary name
+  get_target_property(PRODUCT_NAME_NOSPACES ${TARGET} JUCE_PRODUCT_NAME)
+  string(REPLACE " " "_" PRODUCT_NAME_NOSPACES "${PRODUCT_NAME_NOSPACES}")
+  set_target_properties(${TARGET}_LV2 PROPERTIES OUTPUT_NAME "${PRODUCT_NAME_NOSPACES}")
+
+  get_target_property(LIBRARY_OUTPUT_DIRECTORY ${TARGET} LIBRARY_OUTPUT_DIRECTORY)
+  set(LV2_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY}/LV2/${PRODUCT_NAME_NOSPACES}.lv2")
+  set_target_properties(${TARGET}_LV2 PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${LV2_OUTPUT_DIRECTORY}")
 endfunction()
 
 # ---------------------------------------------------------------------------------------------------------------------

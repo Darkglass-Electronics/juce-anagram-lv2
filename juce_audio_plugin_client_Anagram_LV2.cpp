@@ -60,11 +60,26 @@ public:
         numInputs = filter->getTotalNumInputChannels();
         numOutputs = filter->getTotalNumOutputChannels();
         numControls = parameters.size();
+        bypassParameter = filter->getBypassParameter();
 
         // Stop here if filter has Anagram incompatible IO
         if (numInputs < 1 || numOutputs < 1)
         {
             lv2_log_error (&logger, "Plugin filter has Anagram incompatible IO\n");
+            return;
+        }
+
+        // Stop here if filter is missing bypass parameter
+        if (bypassParameter == nullptr)
+        {
+            lv2_log_error (&logger, "Plugin filter is missing bypass parameter, required for Anagram\n");
+            return;
+        }
+
+        // Stop here if filter has no parameters
+        if (numControls <= 1)
+        {
+            lv2_log_error (&logger, "Plugin filter has no parameters, at least 1 is required for Anagram\n");
             return;
         }
 
@@ -87,9 +102,6 @@ public:
             else
                 lastControlValues.setUnchecked(i, parameter->getValue());
         }
-
-        if (bypassParameter = filter->getBypassParameter(); bypassParameter != nullptr)
-            --numControls;
 
         ok = true;
     }
@@ -126,19 +138,21 @@ public:
             return;
         }
 
-        /* TODO
+       #if JucePlugin_LV2WantsFreeWheel
         if (port-- == 0)
         {
             ports.freeWheel = static_cast<const float*> (data);
             return;
         }
+       #endif
 
+       #if JucePlugin_LV2WantsLatency
         if (port-- == 0)
         {
             ports.latency = static_cast<float*> (data);
             return;
         }
-        */
+       #endif
 
         if (port < numControls)
         {
@@ -349,6 +363,7 @@ static int doRecall(const char* libraryPath)
         // Header
         ttl << "@prefix atom:  <" LV2_ATOM_PREFIX "> .\n"
                "@prefix bufs:  <http://lv2plug.in/ns/ext/buf-size#> .\n"
+               "@prefix dg:    <http://www.darkglass.com/lv2/ns#> .\n"
                "@prefix doap:  <http://usefulinc.com/ns/doap#> .\n"
                "@prefix kx:    <http://kxstudio.sf.net/ns/lv2ext/props#> .\n"
                "@prefix foaf:  <http://xmlns.com/foaf/0.1/> .\n"
@@ -362,7 +377,16 @@ static int doRecall(const char* libraryPath)
 
         // Plugin
         ttl << "<" JucePlugin_LV2URI ">\n"
-               "\ta lv2:Plugin , doap:Project ;\n"
+               "\ta "
+              #if JucePlugin_IsSynth
+               "lv2:InstrumentPlugin"
+              #elif defined(JucePlugin_LV2Category)
+               JucePlugin_LV2Category
+              #else
+               "lv2:Plugin"
+              #endif
+               " , doap:Project ;\n"
+               "\n"
                "\tlv2:requiredFeature bufs:boundedBlockLength , opts:options , urid:map ;\n"
                "\topts:requiredOption bufs:nominalBlockLength ;\n"
                "\n";
@@ -457,12 +481,20 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:designation kx:Reset ;\n"
                "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI , pprop:trigger ;\n";
 
+       #if JucePlugin_LV2WantsFreeWheel
+        // TODO
+       #endif
+
+       #if JucePlugin_LV2WantsLatency
+        // TODO
+       #endif
+
         if (numControls - (bypassParameter != nullptr ? 1 : 0) == 0)
             ttl << "\t] ;\n\n";
         else
             ttl << "\t] , [\n";
 
-        for (int i = 0, offset = 0; i - offset < numControls; ++i)
+        for (int i = 0, offset = 0; i < numControls; ++i)
         {
             AudioProcessorParameter* const parameter = parameters.getUnchecked(i);
 
@@ -478,12 +510,12 @@ static int doRecall(const char* libraryPath)
             // TODO ask Jesse the real param size
             String name = parameter->getName(32);
             if (name.isEmpty())
-                name = "Parameter" + String(i + 1);
+                name = "Parameter" + String(i - offset + 1);
 
             ttl << "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
                    "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
                    "\t\tlv2:symbol \"" << symbol.toRawUTF8() << "\" ;\n"
-                   "\t\tlv2:name \"" << name.toRawUTF8() << "\" ;\n";
+                   "\t\tlv2:name \"" << name.replace("\"", "'").toRawUTF8() << "\" ;\n";
 
             if (const auto rangedParameter = dynamic_cast<const RangedAudioParameter*>(parameter))
             {
@@ -514,10 +546,39 @@ static int doRecall(const char* libraryPath)
                 ttl << "\t] , [\n";
         }
 
-        ttl << "\tdoap:name \"" << filter->getName().toRawUTF8() << "\" ;\n"
-               "\tdoap:description \"" JucePlugin_Desc "\" ;\n";
+        ttl << "\tdoap:name \"" << filter->getName().replace("\"", "'").toRawUTF8() << "\" ;\n"
+               "\tdoap:description \"" JucePlugin_Desc << "\" ;\n"
+               "\tdoap:maintainer [\n"
+               "\t\ta foaf:Person ;\n"
+               "\t\tfoaf:name \"" JucePlugin_Manufacturer "\" ;\n"
+               "\t\tfoaf:homepage <" JucePlugin_ManufacturerWebsite "> ;\n"
+               "\t\tfoaf:mbox <" JucePlugin_ManufacturerEmail "> ;\n"
+               "\t] ;\n"
+               "\tdoap:release [\n"
+               "\t\ta doap:Version ;\n"
+               "\t\tdoap:revision \"" JucePlugin_VersionString "\" ;\n"
+               "\t] ;\n\n";
 
-        ttl << "\t.\n";
+        juce::StringArray altNames = filter->getAlternateDisplayNames();
+        for (const juce::String& altName : altNames)
+        {
+            if (altName.length() >= 2 && altName.length() <= 3)
+            {
+                static constexpr auto isValidChar = [](juce_wchar c)
+                {
+                    return c == 0 || (CharacterFunctions::isUpperCase (c) && c != '"');
+                };
+
+                if (isValidChar(altName[0]) && isValidChar(altName[1]) && isValidChar(altName[2]))
+                {
+                    ttl << "\tdg:abbreviation \"" << altName.toRawUTF8() << "\" ;\n\n" ;
+                    break;
+                }
+            }
+        }
+
+        ttl << "\tlv2:minorVersion 0 ;\n"
+               "\tlv2:microVersion 0 .\n";
     }
 
     std::cout << "done!" << std::endl;
