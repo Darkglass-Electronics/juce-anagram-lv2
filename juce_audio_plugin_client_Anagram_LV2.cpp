@@ -666,13 +666,21 @@ static int doRecall(const char* libraryPath)
 
                 if (isValidChar(altName[0]) && isValidChar(altName[1]) && isValidChar(altName[2]))
                 {
-                    ttl << "\tdg:abbreviation \"" << altName.toRawUTF8() << "\" ;\n\n" ;
+                    ttl << "\tdg:abbreviation \"" << altName.toRawUTF8() << "\" ;\n" ;
                     break;
                 }
             }
         }
 
-        ttl << "\tlv2:minorVersion 0 ;\n"
+#ifdef JucePlugin_LV2BlockImageOff
+        ttl << "\tdg:blockImageOff <" JucePlugin_LV2BlockImageOff "> ;\n" ;
+#endif
+#ifdef JucePlugin_LV2BlockImageOn
+        ttl << "\tdg:blockImageOn <" JucePlugin_LV2BlockImageOn "> ;\n" ;
+#endif
+
+        ttl << "\n"
+               "\tlv2:minorVersion 0 ;\n"
                "\tlv2:microVersion 0 .\n";
     }
 
