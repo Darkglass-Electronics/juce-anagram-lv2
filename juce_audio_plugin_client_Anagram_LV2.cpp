@@ -22,6 +22,10 @@
 #include <lv2/core/lv2_util.h>
 #include <lv2/log/logger.h>
 
+#ifdef __MOD_DEVICES__
+#include <libmodla.h>
+#endif
+
 #include <fstream>
 
 namespace juce::anagram_lv2_client
@@ -256,6 +260,10 @@ public:
 
             const ScopedLock sl (filter->getCallbackLock());
 
+           #ifdef __MOD_DEVICES__
+            licenseRunCount = mod_license_run_begin(licenseRunCount, (uint32_t)sampleCount);
+           #endif
+
             if (filter->isSuspended())
             {
                 for (int i = 0; i < numOutputs; ++i)
@@ -265,6 +273,11 @@ public:
             {
                 filter->processBlock (chans, midiEvents);
             }
+
+           #ifdef __MOD_DEVICES__
+            for (int i = 0; i < numOutputs; ++i)
+                mod_license_run_silence(licenseRunCount, ports.audioOuts[i], (uint32_t)sampleCount, (uint32_t)i);
+           #endif
         }
     }
 
@@ -281,6 +294,9 @@ private:
     int numInputs = 0;
     int numOutputs = 0;
     int numControls = 0;
+   #ifdef __MOD_DEVICES__
+    uint32_t licenseRunCount = 0;
+   #endif
 
     struct {
         double sampleRate;
@@ -423,6 +439,10 @@ static int doRecall(const char* libraryPath)
                "\n"
                "\tlv2:requiredFeature bufs:boundedBlockLength , opts:options , urid:map ;\n"
                "\topts:requiredOption bufs:nominalBlockLength ;\n"
+              #ifdef __MOD_DEVICES__
+               "\tlv2:extensionData <http://moddevices.com/ns/ext/license#interface> ;\n"
+               "\tlv2:requiredFeature <http://moddevices.com/ns/ext/license#feature> ;\n"
+              #endif
                "\n";
 
         int portIndex = 0;
@@ -735,6 +755,10 @@ LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
                 return nullptr;
             }
 
+           #ifdef __MOD_DEVICES__
+            mod_license_check(features, JucePlugin_LV2URI);
+           #endif
+
             std::unique_ptr<JuceLv2Wrapper> wrapper = std::make_unique<JuceLv2Wrapper> (sampleRate,
                                                                                         bufferSize,
                                                                                         logger,
@@ -782,7 +806,11 @@ LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
             if (std::strcmp(uri, "https://lv2-extensions.juce.com/turtle_recall") == 0)
                 return &recall;
 
+           #ifdef __MOD_DEVICES__
+            return mod_license_interface(uri);
+           #else
             return nullptr;
+           #endif
         }
     };
 

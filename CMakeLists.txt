@@ -77,6 +77,14 @@ function(juce_anagram_lv2_setup TARGET)
         PkgConfig::libpng
         PkgConfig::zlib
     )
+
+    # link against libmodla for licensing/copy-protection
+    if($ENV{CXXFLAGS} MATCHES "^.*-D__MOD_DEVICES__.*$")
+      target_link_libraries(${TARGET}
+        PUBLIC
+          modla
+      )
+    endif()
   endif()
 
   # add ourselves to the include directories, so we can override JUCE files
