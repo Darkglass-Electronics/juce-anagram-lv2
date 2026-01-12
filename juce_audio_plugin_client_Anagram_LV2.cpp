@@ -5,6 +5,17 @@
 // optional for testing
 // #define ENABLE_JUCE_GUI
 
+#ifndef _SCL_SECURE_NO_WARNINGS
+ #define _SCL_SECURE_NO_WARNINGS
+#endif
+
+#ifndef _CRT_SECURE_NO_WARNINGS
+ #define _CRT_SECURE_NO_WARNINGS
+#endif
+
+// #define JUCE_CORE_INCLUDE_NATIVE_HEADERS 1
+// #define JUCE_CORE_INCLUDE_OBJC_HELPERS 1
+
 #ifdef ENABLE_JUCE_GUI
 #define JUCE_GUI_BASICS_INCLUDE_XHEADERS 1
 #include <juce_audio_plugin_client/juce_audio_plugin_client.h>
@@ -13,9 +24,20 @@
 #include <juce_audio_plugin_client/juce_audio_plugin_client.h>
 #endif
 
+#include <juce_core/juce_core.h>
+
+#if JUCE_VERSION >= 0x8000a
+#include <juce_audio_plugin_client/detail/juce_PluginUtilities.h>
+#endif
+
 #include "JuceLV2Defines.h"
+#if JUCE_VERSION >= 0x8000b
+#include <juce_audio_processors_headless/format_types/juce_LV2Common.h>
+#include <juce_audio_processors_headless/format_types/juce_LegacyAudioParameter.h>
+#else
 #include <juce_audio_processors/format_types/juce_LV2Common.h>
 #include <juce_audio_processors/format_types/juce_LegacyAudioParameter.cpp>
+#endif
 
 #include "juce_anagram.h"
 
