@@ -174,6 +174,10 @@ public:
         filter->setPlayConfigDetails (numInputs, numOutputs, host.sampleRate, host.bufferSize);
 
         audioBuffers.calloc (std::max (numInputs, numOutputs));
+
+       #ifdef __MOD_DEVICES__
+        licenseRunCount = 0;
+       #endif
     }
 
     void deactivate()
@@ -186,7 +190,12 @@ public:
     void run(int sampleCount)
     {
         if (ports.reset != nullptr && *ports.reset > 0.5f)
+        {
             filter->reset();
+           #ifdef __MOD_DEVICES__
+            licenseRunCount = 0;
+           #endif
+        }
 
         if (ports.freeWheel != nullptr)
             filter->setNonRealtime (*ports.freeWheel > 0.5f);
