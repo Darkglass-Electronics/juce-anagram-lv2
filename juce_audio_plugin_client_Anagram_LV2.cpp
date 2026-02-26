@@ -547,10 +547,10 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:maximum 1.0 ;\n"
                "\t\tlv2:designation lv2:enabled ;\n"
                "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;\n"
-               "\t] , [\n";
 
         // Reset parameter
-        ttl << "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
+        ttl << "\t] , [\n"
+               "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
                "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
                "\t\tlv2:symbol \"lv2_reset\" ;\n"
                "\t\tlv2:name \"Reset\" ;\n"
@@ -559,11 +559,11 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:maximum 1.0 ;\n"
                "\t\tlv2:designation kx:Reset ;\n"
                "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI , pprop:trigger ;\n"
-               "\t] , [\n";
 
        #if JucePlugin_LV2WantsFreeWheel
         // Free Wheeling parameter
-        ttl << "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
+        ttl << "\t] , [\n"
+               "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
                "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
                "\t\tlv2:symbol \"lv2_freeWheeling\" ;\n"
                "\t\tlv2:name \"Free Wheeling\" ;\n"
@@ -572,19 +572,18 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:maximum 1.0 ;\n"
                "\t\tlv2:designation lv2:freeWheeling ;\n"
                "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;\n"
-               "\t] , [\n";
        #endif
 
        #if JucePlugin_LV2WantsLatency
         // Latency parameter
-        ttl << "\t\ta lv2:OutputPort , lv2:ControlPort ;\n"
+        ttl << "\t] , [\n"
+               "\t\ta lv2:OutputPort , lv2:ControlPort ;\n"
                "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
                "\t\tlv2:symbol \"lv2_latency\" ;\n"
                "\t\tlv2:name \"Latency\" ;\n"
                "\t\tlv2:designation lv2:latency ;\n"
                "\t\tlv2:portProperty lv2:reportsLatency , lv2:integer , lv2:connectionOptional , pprop:notOnGUI ;\n"
                "\t\tunits:unit units:frame ;\n"
-               "\t] , [\n";
        #endif
 
         // regular parameters
@@ -608,7 +607,8 @@ static int doRecall(const char* libraryPath)
             if (name.isEmpty())
                 name = "Parameter " + String(i - offset + 1);
 
-            ttl << "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
+            ttl << "\t] , [\n"
+                   "\t\ta lv2:InputPort , lv2:ControlPort ;\n"
                    "\t\tlv2:index " << std::to_string(portIndex++) << " ;\n"
                    "\t\tlv2:symbol \"" << symbol.toRawUTF8() << "\" ;\n"
                    "\t\tlv2:name \"" << name.replace("\"", "'").toRawUTF8() << "\" ;\n";
@@ -685,12 +685,9 @@ static int doRecall(const char* libraryPath)
                     ttl << "\t\t] ;\n";
                 }
             }
-
-            if (i + 1 == numControls)
-                ttl << "\t] ;\n\n";
-            else
-                ttl << "\t] , [\n";
         }
+
+        ttl << "\t] ;\n\n";
 
         ttl << "\tdoap:name \"" << filter->getName().replace("\"", "'").toRawUTF8() << "\" ;\n"
                "\tdoap:description \"" JucePlugin_Desc << "\" ;\n"
