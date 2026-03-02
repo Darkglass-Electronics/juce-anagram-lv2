@@ -546,7 +546,7 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:minimum 0.0 ;\n"
                "\t\tlv2:maximum 1.0 ;\n"
                "\t\tlv2:designation lv2:enabled ;\n"
-               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;\n"
+               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;\n";
 
         // Reset parameter
         ttl << "\t] , [\n"
@@ -558,7 +558,7 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:minimum 0.0 ;\n"
                "\t\tlv2:maximum 1.0 ;\n"
                "\t\tlv2:designation kx:Reset ;\n"
-               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI , pprop:trigger ;\n"
+               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI , pprop:trigger ;\n";
 
        #if JucePlugin_LV2WantsFreeWheel
         // Free Wheeling parameter
@@ -571,7 +571,7 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:minimum 0.0 ;\n"
                "\t\tlv2:maximum 1.0 ;\n"
                "\t\tlv2:designation lv2:freeWheeling ;\n"
-               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;\n"
+               "\t\tlv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;\n";
        #endif
 
        #if JucePlugin_LV2WantsLatency
@@ -583,7 +583,7 @@ static int doRecall(const char* libraryPath)
                "\t\tlv2:name \"Latency\" ;\n"
                "\t\tlv2:designation lv2:latency ;\n"
                "\t\tlv2:portProperty lv2:reportsLatency , lv2:integer , lv2:connectionOptional , pprop:notOnGUI ;\n"
-               "\t\tunits:unit units:frame ;\n"
+               "\t\tunits:unit units:frame ;\n";
        #endif
 
         // regular parameters
