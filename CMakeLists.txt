@@ -50,9 +50,12 @@ include(CMakeParseArguments)
 #   `IS_FREEWARE`
 #       plugin is freeware or non-commercial
 #
+#   `STYLING_TTL`
+#       path to a custom-written ttl file describing block image and settings styling
+#
 function(juce_anagram_lv2_setup TARGET)
   set(options ENABLE_LATENCY ENABLE_FREEWHEEL IS_FREEWARE)
-  set(oneValueArgs BLOCK_IMAGE_OFF BLOCK_IMAGE_ON CATEGORY)
+  set(oneValueArgs BLOCK_IMAGE_OFF BLOCK_IMAGE_ON CATEGORY STYLING_TTL)
   set(multiValueArgs TODO)
   cmake_parse_arguments(_anagram_juce_plugin "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -133,6 +136,9 @@ function(juce_anagram_lv2_setup TARGET)
   if (_anagram_juce_plugin_IS_FREEWARE)
     target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2IsFreeware=1)
   endif()
+  if (_anagram_juce_plugin_STYLING_TTL)
+    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2CustomStylingTtl="${_anagram_juce_plugin_STYLING_TTL}")
+  endif()
 
   # do not use "lib" prefix for plugin binaries
   set_target_properties(${TARGET}_LV2 PROPERTIES PREFIX "")
@@ -146,7 +152,7 @@ function(juce_anagram_lv2_setup TARGET)
   set(LV2_OUTPUT_DIRECTORY "${LIBRARY_OUTPUT_DIRECTORY}/LV2/${PRODUCT_NAME_NOSPACES}.lv2")
   set_target_properties(${TARGET}_LV2 PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${LV2_OUTPUT_DIRECTORY}")
 
-  # copy block images to LV2 bundle
+  # copy resources to LV2 bundle
   if (_anagram_juce_plugin_BLOCK_IMAGE_OFF)
     add_custom_command(TARGET ${TARGET}_LV2 POST_BUILD
       COMMAND
@@ -166,6 +172,17 @@ function(juce_anagram_lv2_setup TARGET)
         "copy"
         "${CMAKE_CURRENT_SOURCE_DIR}/${_anagram_juce_plugin_BLOCK_IMAGE_ON}"
         "${LV2_OUTPUT_DIRECTORY}/${_anagram_juce_plugin_BLOCK_IMAGE_ON}"
+      VERBATIM
+    )
+  endif()
+  if (_anagram_juce_plugin_STYLING_TTL)
+    add_custom_command(TARGET ${TARGET}_LV2 POST_BUILD
+      COMMAND
+        "${CMAKE_COMMAND}"
+        "-E"
+        "copy"
+        "${CMAKE_CURRENT_SOURCE_DIR}/${_anagram_juce_plugin_STYLING_TTL}"
+        "${LV2_OUTPUT_DIRECTORY}/${_anagram_juce_plugin_STYLING_TTL}"
       VERBATIM
     )
   endif()
