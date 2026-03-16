@@ -24,7 +24,9 @@ This main change for this custom alternative LV2 wrapper is the use of Control P
 Assuming you are using CMake, setting up this custom wrapper is quite simple. Steps:
 
  - import the root of this repository into your CMakeLists.txt (either with `add_subdirectory` or `FetchContent_Declare`)
- - after your `juce_add_plugin(TARGET ...)` call `juce_anagram_lv2_setup(TARGET)`
+ - after your `juce_add_plugin(TARGET ...)` call `juce_anagram_lv2_setup(TARGET ...)`
+
+See the [CMakeLists.txt](CMakeLists.txt#L33) for the supported arguments of this cmake function.
 
 Example of a CMakeLists.txt file:
 
