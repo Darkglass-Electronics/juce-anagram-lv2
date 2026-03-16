@@ -47,8 +47,11 @@ include(CMakeParseArguments)
 #   `ENABLE_LATENCY`
 #       enable latency control port (reporting latency to host)
 #
+#   `IS_FREEWARE`
+#       plugin is freeware or non-commercial
+#
 function(juce_anagram_lv2_setup TARGET)
-  set(options ENABLE_LATENCY ENABLE_FREEWHEEL)
+  set(options ENABLE_LATENCY ENABLE_FREEWHEEL IS_FREEWARE)
   set(oneValueArgs BLOCK_IMAGE_OFF BLOCK_IMAGE_ON CATEGORY)
   set(multiValueArgs TODO)
   cmake_parse_arguments(_anagram_juce_plugin "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -126,6 +129,9 @@ function(juce_anagram_lv2_setup TARGET)
   endif()
   if (_anagram_juce_plugin_ENABLE_LATENCY)
     target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2WantsLatency=1)
+  endif()
+  if (_anagram_juce_plugin_IS_FREEWARE)
+    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2IsFreeware=1)
   endif()
 
   # do not use "lib" prefix for plugin binaries

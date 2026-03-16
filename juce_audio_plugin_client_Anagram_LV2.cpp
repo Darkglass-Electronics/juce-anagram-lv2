@@ -44,7 +44,8 @@
 #include <lv2/core/lv2_util.h>
 #include <lv2/log/logger.h>
 
-#ifdef __MOD_DEVICES__
+#if defined(__MOD_DEVICES__) && !JucePlugin_LV2IsFreeware
+#define ENABLE_MOD_LICENSING_API
 #include <libmodla.h>
 #endif
 
@@ -197,7 +198,7 @@ public:
 
         audioBuffers.calloc (std::max (numInputs, numOutputs));
 
-       #ifdef __MOD_DEVICES__
+       #ifdef ENABLE_MOD_LICENSING_API
         licenseRunCount = 0;
        #endif
     }
@@ -214,7 +215,7 @@ public:
         if (ports.reset != nullptr && *ports.reset > 0.5f)
         {
             filter->reset();
-           #ifdef __MOD_DEVICES__
+           #ifdef ENABLE_MOD_LICENSING_API
             licenseRunCount = 0;
            #endif
         }
@@ -291,7 +292,7 @@ public:
 
             const ScopedLock sl (filter->getCallbackLock());
 
-           #ifdef __MOD_DEVICES__
+           #ifdef ENABLE_MOD_LICENSING_API
             licenseRunCount = mod_license_run_begin(licenseRunCount, (uint32_t)sampleCount);
            #endif
 
@@ -305,7 +306,7 @@ public:
                 filter->processBlock (chans, midiEvents);
             }
 
-           #ifdef __MOD_DEVICES__
+           #ifdef ENABLE_MOD_LICENSING_API
             for (int i = 0; i < numOutputs; ++i)
                 mod_license_run_silence(licenseRunCount, ports.audioOuts[i], (uint32_t)sampleCount, (uint32_t)i);
            #endif
@@ -325,7 +326,7 @@ private:
     int numInputs = 0;
     int numOutputs = 0;
     int numControls = 0;
-   #ifdef __MOD_DEVICES__
+   #ifdef ENABLE_MOD_LICENSING_API
     uint32_t licenseRunCount = 0;
    #endif
 
@@ -470,7 +471,7 @@ static int doRecall(const char* libraryPath)
                "\n"
                "\tlv2:requiredFeature bufs:boundedBlockLength , opts:options , urid:map ;\n"
                "\topts:requiredOption bufs:nominalBlockLength ;\n"
-              #ifdef __MOD_DEVICES__
+              #ifdef ENABLE_MOD_LICENSING_API
                "\tlv2:extensionData <http://moddevices.com/ns/ext/license#interface> ;\n"
                "\tlv2:requiredFeature <http://moddevices.com/ns/ext/license#feature> ;\n"
               #endif
@@ -783,7 +784,7 @@ LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
                 return nullptr;
             }
 
-           #ifdef __MOD_DEVICES__
+           #ifdef ENABLE_MOD_LICENSING_API
             mod_license_check(features, JucePlugin_LV2URI);
            #endif
 
@@ -834,7 +835,7 @@ LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
             if (std::strcmp(uri, "https://lv2-extensions.juce.com/turtle_recall") == 0)
                 return &recall;
 
-           #ifdef __MOD_DEVICES__
+           #ifdef ENABLE_MOD_LICENSING_API
             return mod_license_interface(uri);
            #else
             return nullptr;
