@@ -85,7 +85,7 @@ function(juce_anagram_lv2_setup TARGET)
     )
 
     # link against libmodla for licensing/copy-protection
-    if($ENV{CXXFLAGS} MATCHES "^.*-D__MOD_DEVICES__.*$")
+    if($ENV{CXXFLAGS} MATCHES "^.*-D__MOD_DEVICES__.*$" AND NOT _anagram_juce_plugin_IS_FREEWARE)
       target_link_libraries(${TARGET}
         PUBLIC
           modla
