@@ -788,9 +788,13 @@ LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
                 return nullptr;
             }
 
-           #ifdef ENABLE_MOD_LICENSING_API
+          #ifdef ENABLE_MOD_LICENSING_API
+           #if JucePlugin_LV2IsSystemBlock
+            mod_license_check(features, "urn:darkglass:pablito");
+           #else
             mod_license_check(features, JucePlugin_LV2URI);
            #endif
+          #endif
 
             std::unique_ptr<JuceLv2Wrapper> wrapper = std::make_unique<JuceLv2Wrapper> (sampleRate,
                                                                                         bufferSize,

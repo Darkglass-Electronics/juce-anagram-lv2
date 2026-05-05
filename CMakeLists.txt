@@ -50,14 +50,21 @@ include(CMakeParseArguments)
 #   `IS_FREEWARE`
 #       plugin is freeware or non-commercial
 #
+#   `IS_SYSTEM_BLOCK`
+#       plugin is a system block part of KosmOS
+#
 #   `STYLING_TTL`
 #       path to a custom-written ttl file describing block image and settings styling
 #
 function(juce_anagram_lv2_setup TARGET)
-  set(options ENABLE_LATENCY ENABLE_FREEWHEEL IS_FREEWARE)
+  set(options ENABLE_LATENCY ENABLE_FREEWHEEL IS_FREEWARE IS_SYSTEM_BLOCK)
   set(oneValueArgs BLOCK_IMAGE_OFF BLOCK_IMAGE_ON CATEGORY STYLING_TTL)
   set(multiValueArgs TODO)
   cmake_parse_arguments(_anagram_juce_plugin "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if (_anagram_juce_plugin_IS_FREEWARE AND _anagram_juce_plugin_IS_SYSTEM_BLOCK)
+    message(FATAL_ERROR "IS_FREEWARE and IS_SYSTEM_BLOCK cannot be used at the same time!")
+  endif()
 
   # disable superfulous Linux deps that we will never use, use system libs
   if(CMAKE_CROSSCOMPILING_EMULATOR)
@@ -135,6 +142,9 @@ function(juce_anagram_lv2_setup TARGET)
   endif()
   if (_anagram_juce_plugin_IS_FREEWARE)
     target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2IsFreeware=1)
+  endif()
+  if (_anagram_juce_plugin_IS_SYSTEM_BLOCK)
+    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2IsSystemBlock=1)
   endif()
   if (_anagram_juce_plugin_STYLING_TTL)
     target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2CustomStylingTtl="${_anagram_juce_plugin_STYLING_TTL}")
