@@ -54,12 +54,12 @@
 namespace juce::anagram_lv2_client
 {
 
-// NOTE original JUCE version can replace the first char if it's a number, leading to duplicated symbols
-// we implement our own `sanitiseStringAsTtlName` variant here
-static inline String sanitiseStringAsTtlName (const String& input, int index)
+static inline String sanitiseStringAsSymbol (const String& input, int index)
 {
     if (input.isEmpty())
-        return "lv2_port_" + String(index);
+        return "lv2_ctrl_port_" + String(index);
+
+    const String allowedCharacters ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789");
 
     std::vector<juce_wchar> sanitised;
     sanitised.reserve (static_cast<size_t> (input.length()) + 1);
@@ -69,7 +69,7 @@ static inline String sanitiseStringAsTtlName (const String& input, int index)
 
     std::for_each (std::begin (input), std::end (input), [&] (juce_wchar x)
     {
-        sanitised.push_back (lv2_shared::isNameChar (x) ? x : '_');
+        sanitised.push_back (allowedCharacters.containsChar (x) ? x : '_');
     });
 
     return String (CharPointer_UTF32 { sanitised.data() }, sanitised.size());
@@ -623,10 +623,8 @@ static int doRecall(const char* libraryPath)
                 continue;
             }
 
-            const String symbol = sanitiseStringAsTtlName (
-                URL::addEscapeChars (LegacyAudioParameter::getParamID (parameter, false), true), i)
-                // mishandled in some JUCE versions, a '-' character is not allowed as symbol
-                .replace("-","_");
+            const String symbol = sanitiseStringAsSymbol (
+                URL::addEscapeChars (LegacyAudioParameter::getParamID (parameter, false), true), i);
 
             // TODO ask Jesse the real param size
             String name = parameter->getName(32);
