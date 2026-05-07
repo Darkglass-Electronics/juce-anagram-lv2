@@ -59,12 +59,13 @@ static inline String sanitiseStringAsSymbol (const String& input, int index)
     if (input.isEmpty())
         return "lv2_ctrl_port_" + String(index);
 
+    const String allowedFirstCharacters ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_");
     const String allowedCharacters ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789");
 
     std::vector<juce_wchar> sanitised;
     sanitised.reserve (static_cast<size_t> (input.length()) + 1);
 
-    if (! lv2_shared::isNameStartChar (input[0]))
+    if (! allowedFirstCharacters.containsChar (input[0]))
         sanitised.push_back ('_');
 
     std::for_each (std::begin (input), std::end (input), [&] (juce_wchar x)
