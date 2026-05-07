@@ -54,6 +54,27 @@
 namespace juce::anagram_lv2_client
 {
 
+// NOTE original JUCE version can replace the first char if it's a number, leading to duplicated symbols
+// we implement our own `sanitiseStringAsTtlName` variant here
+static inline String sanitiseStringAsTtlName (const String& input, int index)
+{
+    if (input.isEmpty())
+        return "lv2_port_" + String(index);
+
+    std::vector<juce_wchar> sanitised;
+    sanitised.reserve (static_cast<size_t> (input.length()) + 1);
+
+    if (! lv2_shared::isNameStartChar (input[0]))
+        sanitised.push_back ('_');
+
+    std::for_each (std::begin (input), std::end (input), [&] (juce_wchar x)
+    {
+        sanitised.push_back (lv2_shared::isNameChar (x) ? x : '_');
+    });
+
+    return String (CharPointer_UTF32 { sanitised.data() }, sanitised.size());
+}
+
 class JuceLv2Wrapper
 {
 public:
@@ -602,8 +623,8 @@ static int doRecall(const char* libraryPath)
                 continue;
             }
 
-            const String symbol = lv2_shared::sanitiseStringAsTtlName (
-                URL::addEscapeChars (LegacyAudioParameter::getParamID (parameter, false), true))
+            const String symbol = sanitiseStringAsTtlName (
+                URL::addEscapeChars (LegacyAudioParameter::getParamID (parameter, false), true), i)
                 // mishandled in some JUCE versions, a '-' character is not allowed as symbol
                 .replace("-","_");
 
