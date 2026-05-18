@@ -639,7 +639,7 @@ static int doRecall(const char* libraryPath)
                    "\t\tlv2:name \"" << name.replace("\"", "'").toRawUTF8() << "\" ;\n";
 
             float min, max;
-            if (const auto rangedParameter = dynamic_cast<const RangedAudioParameter*>(parameter))
+            if (const auto* rangedParameter = dynamic_cast<const RangedAudioParameter*>(parameter))
             {
                 const NormalisableRange<float>& range = rangedParameter->getNormalisableRange();
                 min = range.start;
@@ -650,19 +650,21 @@ static int doRecall(const char* libraryPath)
                        "\t\tlv2:minimum " << std::to_string (min) << " ;\n"
                        "\t\tlv2:maximum " << std::to_string (max) << " ;\n";
 
-                /**/ if (rangedParameter->label == "dB")
+                const String label = rangedParameter->label.toLowerCase();
+
+                /**/ if (label == "db")
                     ttl << "\t\tunits:unit units:db ;\n";
-                else if (rangedParameter->label == "hz")
+                else if (label == "hz")
                     ttl << "\t\tunits:unit units:hz ;\n";
-                else if (rangedParameter->label == "khz")
+                else if (label == "khz")
                     ttl << "\t\tunits:unit units:khz ;\n";
-                else if (rangedParameter->label == "mhz")
+                else if (label == "mhz")
                     ttl << "\t\tunits:unit units:mhz ;\n";
-                else if (rangedParameter->label == "ms")
+                else if (label == "ms")
                     ttl << "\t\tunits:unit units:ms ;\n";
-                else if (rangedParameter->label == "s")
+                else if (label == "s")
                     ttl << "\t\tunits:unit units:s ;\n";
-                else if (rangedParameter->label == "%")
+                else if (label == "%")
                     ttl << "\t\tunits:unit units:pc ;\n";
             }
             else
