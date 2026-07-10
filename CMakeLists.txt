@@ -56,8 +56,11 @@ include(CMakeParseArguments)
 #   `STYLING_TTL`
 #       path to a custom-written ttl file describing block image and settings styling
 #
+#   `USE_LEGACY_PARAMS`
+#       use legacy JUCE parameters API
+#
 function(juce_anagram_lv2_setup TARGET)
-  set(options ENABLE_LATENCY ENABLE_FREEWHEEL IS_FREEWARE IS_SYSTEM_BLOCK)
+  set(options ENABLE_LATENCY ENABLE_FREEWHEEL IS_FREEWARE IS_SYSTEM_BLOCK USE_LEGACY_PARAMS)
   set(oneValueArgs BLOCK_IMAGE_OFF BLOCK_IMAGE_ON CATEGORY STYLING_TTL)
   set(multiValueArgs TODO)
   cmake_parse_arguments(_anagram_juce_plugin "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -148,6 +151,9 @@ function(juce_anagram_lv2_setup TARGET)
   endif()
   if (_anagram_juce_plugin_STYLING_TTL)
     target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2CustomStylingTtl="${_anagram_juce_plugin_STYLING_TTL}")
+  endif()
+  if (_anagram_juce_plugin_USE_LEGACY_PARAMS)
+    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2UseLegacyParameters=1)
   endif()
 
   # do not use "lib" prefix for plugin binaries

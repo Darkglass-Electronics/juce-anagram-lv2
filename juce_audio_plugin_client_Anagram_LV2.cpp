@@ -106,12 +106,24 @@ public:
        #endif
         filter->refreshParameterList();
 
+       #if JucePlugin_LV2UseLegacyParameters
+        numControls = filter->getNumParameters();
+        for (int i = 0; i < numControls; ++i)
+        {
+            if (filter->getParameterName(i) == "Bypass")
+            {
+                bypassParameterIndex = i;
+                break;
+            }
+        }
+       #else
         const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
+        numControls = parameters.size();
+        bypassParameter = filter->getBypassParameter();
+       #endif
 
         numInputs = filter->getTotalNumInputChannels();
         numOutputs = filter->getTotalNumOutputChannels();
-        numControls = parameters.size();
-        bypassParameter = filter->getBypassParameter();
 
         // Stop here if filter has Anagram incompatible IO
         if (numInputs < 1 || numOutputs < 1 || numInputs > 2 || numOutputs > 2)
@@ -121,7 +133,11 @@ public:
         }
 
         // Stop here if filter is missing bypass parameter
+       #if JucePlugin_LV2UseLegacyParameters
+        if (bypassParameterIndex == -1)
+       #else
         if (bypassParameter == nullptr)
+       #endif
         {
             lv2_log_error (&logger, "Plugin filter is missing bypass parameter, required for Anagram\n");
             return;
@@ -146,12 +162,16 @@ public:
 
         for (int i = 0; i < numControls; ++i)
         {
+           #if JucePlugin_LV2UseLegacyParameters
+            lastControlValues.setUnchecked(i, filter->getParameter(i));
+           #else
             AudioProcessorParameter* const parameter = parameters.getUnchecked (i);
 
             if (auto* rangedParameter = dynamic_cast<const RangedAudioParameter*> (parameter))
                 lastControlValues.setUnchecked(i, rangedParameter->convertFrom0to1 (rangedParameter->getValue()));
             else
                 lastControlValues.setUnchecked(i, parameter->getValue());
+           #endif
         }
 
         ok = true;
@@ -258,14 +278,20 @@ public:
 
         // Check for updated parameters
         {
+           #if ! JucePlugin_LV2UseLegacyParameters
             const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
+           #endif
             float value;
 
             for (int i = 0, offset = 0; i < numControls; ++i)
             {
+               #if JucePlugin_LV2UseLegacyParameters
+                if (bypassParameterIndex == i)
+               #else
                 AudioProcessorParameter* const parameter = parameters.getUnchecked (i);
 
                 if (parameter == bypassParameter)
+               #endif
                 {
                     ++offset;
                     if (ports.enabled == nullptr)
@@ -274,20 +300,24 @@ public:
                 }
                 else
                 {
-                    if (ports.controls.getUnchecked(i - offset) == nullptr)
+                    if (ports.controls.getUnchecked (i - offset) == nullptr)
                         continue;
-                    value = *ports.controls.getUnchecked(i - offset);
+                    value = *ports.controls.getUnchecked (i - offset);
                 }
 
-                if (approximatelyEqual(lastControlValues.getUnchecked(i), value))
+                if (approximatelyEqual (lastControlValues.getUnchecked(i), value))
                     continue;
 
                 lastControlValues.setUnchecked(i, value);
 
+               #if JucePlugin_LV2UseLegacyParameters
+                filter->setParameterNotifyingHost (i, value);
+               #else
                 if (auto* rangedParameter = dynamic_cast<const RangedAudioParameter*> (parameter))
                     value = rangedParameter->convertTo0to1 (value);
 
                 parameter->setValueNotifyingHost (value);
+               #endif
             }
         }
 
@@ -344,7 +374,11 @@ private:
   #endif
 
     std::unique_ptr<AudioProcessor> filter;
+   #if JucePlugin_LV2UseLegacyParameters
+    int bypassParameterIndex = -1;
+   #else
     AudioProcessorParameter* bypassParameter = nullptr;
+   #endif
     int numInputs = 0;
     int numOutputs = 0;
     int numControls = 0;
@@ -393,12 +427,14 @@ static int doRecall(const char* libraryPath)
    #endif
     filter->refreshParameterList();
 
+   #if JucePlugin_LV2UseLegacyParameters
+    const int numControls = filter->getNumParameters();
+   #else
     const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
+    const int numControls = parameters.size();
+   #endif
     const int numInputs = filter->getTotalNumInputChannels();
     const int numOutputs = filter->getTotalNumOutputChannels();
-    const int numControls = parameters.size();
-
-    AudioProcessorParameter* const bypassParameter = filter->getBypassParameter();
 
     // Stop here if filter has Anagram incompatible IO
     if (numInputs < 1 || numOutputs < 1 || numInputs > 2 || numOutputs > 2)
@@ -408,7 +444,21 @@ static int doRecall(const char* libraryPath)
     }
 
     // Stop here if filter is missing bypass parameter
+   #if JucePlugin_LV2UseLegacyParameters
+    int bypassParameterIndex = -1;
+    for (int i = 0; i < numControls; ++i)
+    {
+        if (filter->getParameterName(i) == "Bypass")
+        {
+            bypassParameterIndex = i;
+            break;
+        }
+    }
+    if (bypassParameterIndex == -1)
+   #else
+    AudioProcessorParameter* const bypassParameter = filter->getBypassParameter();
     if (bypassParameter == nullptr)
+   #endif
     {
         fprintf (stderr, "Plugin filter is missing bypass parameter, required for Anagram\n");
         return 1;
@@ -616,19 +666,36 @@ static int doRecall(const char* libraryPath)
         // regular parameters
         for (int i = 0, offset = 0; i < numControls; ++i)
         {
+           #if JucePlugin_LV2UseLegacyParameters
+            if (bypassParameterIndex == i)
+           #else
+            {
+                ++offset;
+                continue;
+            }
             AudioProcessorParameter* const parameter = parameters.getUnchecked(i);
 
             if (parameter == bypassParameter)
+           #endif
             {
                 ++offset;
                 continue;
             }
 
+           #if JucePlugin_LV2UseLegacyParameters
+            const String symbol = sanitiseStringAsSymbol (
+                URL::addEscapeChars (filter->getParameterID (i), true), i);
+
+            // TODO ask Jesse the real param size
+            String name = filter->getParameterName(i, 32);
+           #else
             const String symbol = sanitiseStringAsSymbol (
                 URL::addEscapeChars (LegacyAudioParameter::getParamID (parameter, false), true), i);
 
             // TODO ask Jesse the real param size
             String name = parameter->getName(32);
+           #endif
+
             if (name.isEmpty())
                 name = "Parameter " + String(i - offset + 1);
 
@@ -638,6 +705,32 @@ static int doRecall(const char* libraryPath)
                    "\t\tlv2:symbol \"" << symbol.toRawUTF8() << "\" ;\n"
                    "\t\tlv2:name \"" << name.replace("\"", "'").toRawUTF8() << "\" ;\n";
 
+           #if JucePlugin_LV2UseLegacyParameters
+            ttl << "\t\tlv2:default " << std::to_string(filter->getParameter(i)) << " ;\n"
+                   "\t\tlv2:minimum 0.0 ;\n"
+                   "\t\tlv2:maximum 1.0 ;\n";
+
+            if (int numSteps = filter->getParameterNumSteps(i);
+                filter->isParameterDiscrete(i) && numSteps >= 2 && numSteps != 0x7fffffff)
+            {
+                ttl << "\t\tlv2:portProperty lv2:enumeration ;\n"
+                       "\t\tlv2:scalePoint [\n";
+
+                for (int j = 0; j < numSteps; ++j)
+                {
+                    const float value = (double)j / (numSteps - 1);
+                    filter->setParameter(i, value);
+
+                    if (j != 0)
+                        ttl << "\t\t] , [\n";
+
+                    ttl << "\t\t\trdfs:label \"" << filter->getParameterText (i).toRawUTF8() << "\" ;\n"
+                           "\t\t\trdf:value " << std::to_string (value) << " ;\n";
+                }
+
+                ttl << "\t\t] ;\n";
+            }
+           #else
             float min, max;
             if (const auto* rangedParameter = dynamic_cast<const RangedAudioParameter*>(parameter))
             {
@@ -724,6 +817,7 @@ static int doRecall(const char* libraryPath)
                     ttl << "\t\t] ;\n";
                 }
             }
+           #endif
         }
 
         ttl << "\t] ;\n\n";
@@ -759,12 +853,12 @@ static int doRecall(const char* libraryPath)
             }
         }
 
-#ifdef JucePlugin_LV2BlockImageOff
+       #ifdef JucePlugin_LV2BlockImageOff
         ttl << "\tdg:blockImageOff <" JucePlugin_LV2BlockImageOff "> ;\n" ;
-#endif
-#ifdef JucePlugin_LV2BlockImageOn
+       #endif
+       #ifdef JucePlugin_LV2BlockImageOn
         ttl << "\tdg:blockImageOn <" JucePlugin_LV2BlockImageOn "> ;\n" ;
-#endif
+       #endif
 
         ttl << "\n"
                "\tlv2:minorVersion 0 ;\n"
