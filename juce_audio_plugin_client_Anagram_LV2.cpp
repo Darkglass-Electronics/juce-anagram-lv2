@@ -669,10 +669,6 @@ static int doRecall(const char* libraryPath)
            #if JucePlugin_LV2UseLegacyParameters
             if (bypassParameterIndex == i)
            #else
-            {
-                ++offset;
-                continue;
-            }
             AudioProcessorParameter* const parameter = parameters.getUnchecked(i);
 
             if (parameter == bypassParameter)
