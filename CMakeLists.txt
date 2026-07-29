@@ -59,8 +59,11 @@ include(CMakeParseArguments)
 #   `USE_LEGACY_PARAMS`
 #       use legacy JUCE parameters API
 #
+#   `USE_MONO_AND_STEREO_VARIANTS`
+#       export mono and stereo variants of the same plugin within the same bundle
+#
 function(juce_anagram_lv2_setup TARGET)
-  set(options ENABLE_LATENCY ENABLE_FREEWHEEL IS_FREEWARE IS_SYSTEM_BLOCK USE_LEGACY_PARAMS)
+  set(options ENABLE_LATENCY ENABLE_FREEWHEEL IS_FREEWARE IS_SYSTEM_BLOCK USE_LEGACY_PARAMS USE_MONO_AND_STEREO_VARIANTS)
   set(oneValueArgs BLOCK_IMAGE_OFF BLOCK_IMAGE_ON CATEGORY STYLING_TTL)
   set(multiValueArgs TODO)
   cmake_parse_arguments(_anagram_juce_plugin "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -154,6 +157,9 @@ function(juce_anagram_lv2_setup TARGET)
   endif()
   if (_anagram_juce_plugin_USE_LEGACY_PARAMS)
     target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2UseLegacyParameters=1)
+  endif()
+  if (_anagram_juce_plugin_USE_MONO_AND_STEREO_VARIANTS)
+    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2UseMonoAndStereoVariants=1)
   endif()
 
   # do not use "lib" prefix for plugin binaries

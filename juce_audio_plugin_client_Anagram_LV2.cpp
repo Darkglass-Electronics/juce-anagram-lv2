@@ -44,6 +44,10 @@
 #include <lv2/core/lv2_util.h>
 #include <lv2/log/logger.h>
 
+#if JucePlugin_LV2UseMonoAndStereoVariants
+#include "lv2/control-port-state-update.h"
+#endif
+
 #if defined(__MOD_DEVICES__) && !JucePlugin_LV2IsFreeware
 #define ENABLE_MOD_LICENSING_API
 #include <libmodla.h>
@@ -82,7 +86,14 @@ public:
     // set to true if plugin initializes properly
     bool ok = false;
 
-    JuceLv2Wrapper(double sampleRate, int32_t bufferSize, LV2_Log_Logger& logger, LV2_URID_Map* uridMap)
+    JuceLv2Wrapper(double sampleRate,
+                   int32_t bufferSize,
+                  #if JucePlugin_LV2UseMonoAndStereoVariants
+                   bool isStereo,
+                   LV2_Control_Port_State_Update* ctrlPortStateUpdate,
+                  #endif
+                   LV2_Log_Logger& logger,
+                   LV2_URID_Map* uridMap)
     {
         {
            #ifdef ENABLE_JUCE_GUI
@@ -122,15 +133,55 @@ public:
         bypassParameter = filter->getBypassParameter();
        #endif
 
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        if (isStereo)
+        {
+            if (! filter->setChannelLayoutOfBus(false, 0, AudioChannelSet::stereo()) ||
+                ! filter->setChannelLayoutOfBus(true, 0, AudioChannelSet::stereo()))
+            {
+                lv2_log_error (&logger, "Plugin filter refused to work in stereo\n");
+                return;
+            }
+        }
+        else
+        {
+            if (! filter->setChannelLayoutOfBus(false, 0, AudioChannelSet::mono()) ||
+                ! filter->setChannelLayoutOfBus(true, 0, AudioChannelSet::mono()))
+            {
+                lv2_log_error (&logger, "Plugin filter refused to work in mono\n");
+                return;
+            }
+        }
+       #endif
+
         numInputs = filter->getTotalNumInputChannels();
         numOutputs = filter->getTotalNumOutputChannels();
 
         // Stop here if filter has Anagram incompatible IO
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        if (isStereo)
+        {
+            if (numInputs != 2 && numOutputs != 2)
+            {
+                lv2_log_error (&logger, "Plugin filter requested mono + stereo variants, but stereo bus is not implemented\n");
+                return;
+            }
+        }
+        else
+        {
+            if (numInputs != 1 && numOutputs != 1)
+            {
+                lv2_log_error (&logger, "Plugin filter requested mono + stereo variants, but mono bus is not implemented\n");
+                return;
+            }
+        }
+       #else
         if (numInputs < 1 || numOutputs < 1 || numInputs > 2 || numOutputs > 2)
         {
             lv2_log_error (&logger, "Plugin filter has Anagram incompatible IO\n");
             return;
         }
+       #endif
 
         // Stop here if filter is missing bypass parameter
        #if JucePlugin_LV2UseLegacyParameters
@@ -152,6 +203,10 @@ public:
 
         host.sampleRate = sampleRate;
         host.bufferSize = bufferSize;
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        host.isStereo = isStereo;
+        host.ctrlPortStateUpdate = ctrlPortStateUpdate;
+       #endif
         host.logger = logger;
         host.uridMap = uridMap;
 
@@ -389,6 +444,10 @@ private:
     struct {
         double sampleRate;
         int32_t bufferSize;
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        bool isStereo;
+        LV2_Control_Port_State_Update* ctrlPortStateUpdate;
+       #endif
         LV2_Log_Logger logger;
         LV2_URID_Map* uridMap;
     } host{};
@@ -427,20 +486,33 @@ static int doRecall(const char* libraryPath)
    #endif
     filter->refreshParameterList();
 
+   #if JucePlugin_LV2UseMonoAndStereoVariants
+    // start with mono variant
+    if (! filter->setChannelLayoutOfBus(false, 0, AudioChannelSet::mono()) ||
+        ! filter->setChannelLayoutOfBus(true, 0, AudioChannelSet::mono()))
+    {
+        fprintf (stderr, "Plugin filter refused to work in mono\n");
+        return 1;
+    }
+   #endif
+
    #if JucePlugin_LV2UseLegacyParameters
     const int numControls = filter->getNumParameters();
    #else
     const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
     const int numControls = parameters.size();
    #endif
-    const int numInputs = filter->getTotalNumInputChannels();
-    const int numOutputs = filter->getTotalNumOutputChannels();
 
-    // Stop here if filter has Anagram incompatible IO
-    if (numInputs < 1 || numOutputs < 1 || numInputs > 2 || numOutputs > 2)
     {
-        fprintf (stderr, "Plugin filter has Anagram incompatible IO\n");
-        return 1;
+        const int numInputs = filter->getTotalNumInputChannels();
+        const int numOutputs = filter->getTotalNumOutputChannels();
+        
+        // Stop here if filter has Anagram incompatible IO
+        if (numInputs < 1 || numOutputs < 1 || numInputs > 2 || numOutputs > 2)
+        {
+            fprintf (stderr, "Plugin filter has Anagram incompatible IO\n");
+            return 1;
+        }
     }
 
     // Stop here if filter is missing bypass parameter
@@ -534,8 +606,13 @@ static int doRecall(const char* libraryPath)
                "\n";
 
         // Plugin
-        ttl << "<" JucePlugin_LV2URI ">\n"
-               "\ta "
+        ttl << "<" JucePlugin_LV2URI ">\n";
+
+   #if JucePlugin_LV2UseMonoAndStereoVariants
+        bool isStereo = false;
+    repeat:
+   #endif
+        ttl << "\ta "
               #if JucePlugin_IsSynth
                "lv2:InstrumentPlugin"
               #elif defined(JucePlugin_LV2Category)
@@ -552,6 +629,27 @@ static int doRecall(const char* libraryPath)
                "\tlv2:requiredFeature <http://moddevices.com/ns/ext/license#feature> ;\n"
               #endif
                "\n";
+
+        const int numInputs = filter->getTotalNumInputChannels();
+        const int numOutputs = filter->getTotalNumOutputChannels();
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        if (isStereo)
+        {
+            if (numInputs != 2 && numOutputs != 2)
+            {
+                fprintf (stderr, "Plugin filter requested mono + stereo variants, but stereo bus is not implemented\n");
+                return 1;
+            }
+        }
+        else
+        {
+            if (numInputs != 1 && numOutputs != 1)
+            {
+                fprintf (stderr, "Plugin filter requested mono + stereo variants, but mono bus is not implemented\n");
+                return 1;
+            }
+        }
+       #endif
 
         int portIndex = 0;
 
@@ -859,6 +957,22 @@ static int doRecall(const char* libraryPath)
         ttl << "\n"
                "\tlv2:minorVersion 0 ;\n"
                "\tlv2:microVersion 0 .\n";
+
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        if (! isStereo)
+        {
+            // repeat with stereo variant
+            isStereo = true;
+            if (! filter->setChannelLayoutOfBus(false, 0, AudioChannelSet::stereo()) ||
+                ! filter->setChannelLayoutOfBus(true, 0, AudioChannelSet::stereo()))
+            {
+                fprintf (stderr, "Plugin filter refused to work in stereo\n");
+                return 1;
+            }
+            ttl << "\n<" JucePlugin_LV2URI "#stereo>\n";
+            goto repeat;
+        }
+       #endif
     }
 
     std::cout << "done!" << std::endl;
@@ -866,116 +980,169 @@ static int doRecall(const char* libraryPath)
     return 0;
 }
 
-LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
+static LV2_Handle instantiate(const LV2_Descriptor* descriptor,
+                              double sampleRate,
+                              const char*,
+                              const LV2_Feature* const* features)
 {
-    static const LV2_Descriptor descriptor
+    // query optional and required LV2 features
+   #if JucePlugin_LV2UseMonoAndStereoVariants
+    LV2_Control_Port_State_Update* ctrlPortStateUpdate;
+   #endif
+    LV2_Log_Logger logger{};
+    LV2_Options_Option* options;
+    LV2_URID_Map* uridMap;
+
+    const char* missing = lv2_features_query (features,
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        LV2_CONTROL_PORT_STATE_UPDATE_URI, &ctrlPortStateUpdate, false,
+       #endif
+        LV2_LOG__log,                      &logger.log,          false,
+        LV2_OPTIONS__options,              &options,             true,
+        LV2_URID__map,                     &uridMap,             true,
+        nullptr);
+
+    lv2_log_logger_set_map (&logger, uridMap);
+    if (missing != nullptr)
     {
-        JucePlugin_LV2URI,
-        [] (const LV2_Descriptor*,
-            double sampleRate,
-            const char*,
-            const LV2_Feature* const* features) -> LV2_Handle
+        lv2_log_error (&logger, "Missing feature <%s>\n", missing);
+        return nullptr;
+    }
+
+    // query buffer size from LV2 options
+    const LV2_URID uridAtomInt = uridMap->map (uridMap->handle, LV2_ATOM__Int);
+    const LV2_URID uridNominalBlockLength = uridMap->map (uridMap->handle, LV2_BUF_SIZE__nominalBlockLength);
+    int32_t bufferSize = 0;
+
+    for (int i = 0; options[i].key != 0 && options[i].type != 0; ++i)
+    {
+        if (options[i].key == uridNominalBlockLength && options[i].type == uridAtomInt)
         {
-            // query optional and required LV2 features
-            LV2_Log_Logger logger{};
-            LV2_Options_Option* options;
-            LV2_URID_Map* uridMap;
+            bufferSize = *static_cast<const int32_t*> (options[i].value);
+            break;
+        }
+    }
 
-            const char* missing = lv2_features_query (features,
-                LV2_LOG__log,         &logger.log, false,
-                LV2_OPTIONS__options, &options,    true,
-                LV2_URID__map,        &uridMap,    true,
-                nullptr);
+    if (bufferSize == 0)
+    {
+        lv2_log_error (&logger, "Missing option <%s>\n", LV2_BUF_SIZE__nominalBlockLength);
+        return nullptr;
+    }
 
-            lv2_log_logger_set_map (&logger, uridMap);
-            if (missing != nullptr)
-            {
-                lv2_log_error (&logger, "Missing feature <%s>\n", missing);
-                return nullptr;
-            }
+  #ifdef ENABLE_MOD_LICENSING_API
+   #if JucePlugin_LV2IsSystemBlock
+    mod_license_check(features, "urn:darkglass:pablito");
+   #else
+    mod_license_check(features, JucePlugin_LV2URI);
+   #endif
+  #endif
 
-            // query buffer size from LV2 options
-            int32_t bufferSize = 0;
-            for (int i = 0; options[i].key != 0 && options[i].type != 0; ++i)
-            {
-                if (options[i].key == uridMap->map (uridMap->handle, LV2_BUF_SIZE__nominalBlockLength) &&
-                    options[i].type == uridMap->map (uridMap->handle, LV2_ATOM__Int))
-                {
-                    bufferSize = *static_cast<const int32_t*> (options[i].value);
-                    break;
-                }
-            }
+   #if JucePlugin_LV2UseMonoAndStereoVariants
+    bool isStereo = std::strcmp(descriptor->URI, JucePlugin_LV2URI "#stereo") == 0;
+   #else
+    ignoreUnused (descriptor);
+   #endif
 
-            if (bufferSize == 0)
-            {
-                lv2_log_error (&logger, "Missing option <%s>\n", LV2_BUF_SIZE__nominalBlockLength);
-                return nullptr;
-            }
+    std::unique_ptr<JuceLv2Wrapper> wrapper = std::make_unique<JuceLv2Wrapper> (sampleRate,
+                                                                                bufferSize,
+                                                                               #if JucePlugin_LV2UseMonoAndStereoVariants
+                                                                                isStereo,
+                                                                                ctrlPortStateUpdate,
+                                                                               #endif
+                                                                                logger,
+                                                                                uridMap);
 
-          #ifdef ENABLE_MOD_LICENSING_API
-           #if JucePlugin_LV2IsSystemBlock
-            mod_license_check(features, "urn:darkglass:pablito");
-           #else
-            mod_license_check(features, JucePlugin_LV2URI);
-           #endif
-          #endif
+    if (wrapper->ok)
+        return wrapper.release();
 
-            std::unique_ptr<JuceLv2Wrapper> wrapper = std::make_unique<JuceLv2Wrapper> (sampleRate,
-                                                                                        bufferSize,
-                                                                                        logger,
-                                                                                        uridMap);
+    return nullptr;
+}
 
-            if (wrapper->ok)
-                return wrapper.release();
+static void connect_port(LV2_Handle instance, uint32_t port, void* data)
+{
+    static_cast<JuceLv2Wrapper*> (instance)->connect(static_cast<int> (port), data);
+}
 
-            return nullptr;
-        },
-        [] (LV2_Handle instance, uint32_t port, void* data)
+static void activate(LV2_Handle instance)
+{
+    static_cast<JuceLv2Wrapper*> (instance)->activate();
+}
+
+static void run(LV2_Handle instance, uint32_t sampleCount)
+{
+    static_cast<JuceLv2Wrapper*> (instance)->run(static_cast<int> (sampleCount));
+}
+
+static void deactivate(LV2_Handle instance)
+{
+    static_cast<JuceLv2Wrapper*> (instance)->deactivate();
+}
+
+static void cleanup(LV2_Handle instance)
+{
+    JUCE_AUTORELEASEPOOL
+    {
+        delete static_cast<JuceLv2Wrapper*> (instance);
+    }
+}
+
+static const void* extension_data(const char* uri)
+{
+    static const struct {
+        int (*doRecall) (const char*);
+    } recall {
+        [] (const char* libraryPath) -> int
         {
-            static_cast<JuceLv2Wrapper*> (instance)->connect(static_cast<int> (port), data);
-        },
-        [] (LV2_Handle instance)
-        {
-            static_cast<JuceLv2Wrapper*> (instance)->activate();
-        },
-        [] (LV2_Handle instance, uint32_t sampleCount)
-        {
-            static_cast<JuceLv2Wrapper*> (instance)->run(static_cast<int> (sampleCount));
-        },
-        [] (LV2_Handle instance)
-        {
-            static_cast<JuceLv2Wrapper*> (instance)->deactivate();
-        },
-        [] (LV2_Handle instance)
-        {
-            JUCE_AUTORELEASEPOOL
-            {
-                delete static_cast<JuceLv2Wrapper*> (instance);
-            }
-        },
-        [] (const char* uri) -> const void*
-        {
-            static const struct {
-                int (*doRecall) (const char*);
-            } recall {
-                [] (const char* libraryPath) -> int
-                {
-                    return doRecall(libraryPath);
-                }
-            };
-
-            if (std::strcmp(uri, "https://lv2-extensions.juce.com/turtle_recall") == 0)
-                return &recall;
-
-           #ifdef ENABLE_MOD_LICENSING_API
-            return mod_license_interface(uri);
-           #else
-            return nullptr;
-           #endif
+            return doRecall(libraryPath);
         }
     };
 
-    return index == 0 ? &descriptor : nullptr;
+    if (std::strcmp(uri, "https://lv2-extensions.juce.com/turtle_recall") == 0)
+        return &recall;
+
+   #ifdef ENABLE_MOD_LICENSING_API
+    return mod_license_interface(uri);
+   #else
+    return nullptr;
+   #endif
+}
+
+LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor (uint32_t index)
+{
+    static constexpr const LV2_Descriptor descriptor {
+        JucePlugin_LV2URI,
+        instantiate,
+        connect_port,
+        activate,
+        run,
+        deactivate,
+        cleanup,
+        extension_data,
+    };
+#if JucePlugin_LV2UseMonoAndStereoVariants
+    static constexpr const LV2_Descriptor descriptorStereo {
+        JucePlugin_LV2URI "#stereo",
+        instantiate,
+        connect_port,
+        activate,
+        run,
+        deactivate,
+        cleanup,
+        extension_data,
+    };
+#endif
+
+    switch (index)
+    {
+    case 0:
+        return &descriptor;
+#if JucePlugin_LV2UseMonoAndStereoVariants
+    case 1:
+        return &descriptorStereo;
+#endif
+    default:
+        return nullptr;
+    }
 }
 
 }
