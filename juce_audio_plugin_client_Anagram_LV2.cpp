@@ -575,6 +575,18 @@ static int doRecall(const char* libraryPath)
                "\trdfs:seeAlso <dsp.ttl> .\n"
               #endif
                "\n";
+
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        ttl << "<" JucePlugin_LV2URI "#stereo>\n"
+               "\ta lv2:Plugin ;\n"
+               "\tlv2:binary <" << URL::addEscapeChars(libraryPathAbsolute.getFileName(), false) << "> ;\n"
+              #ifdef JucePlugin_LV2CustomStylingTtl
+               "\trdfs:seeAlso <dsp.ttl> , <" << URL::addEscapeChars(JucePlugin_LV2CustomStylingTtl, false) << "> .\n"
+              #else
+               "\trdfs:seeAlso <dsp.ttl> .\n"
+              #endif
+               "\n";
+       #endif
     }
 
     std::cout << "done!" << std::endl;
