@@ -309,6 +309,52 @@ public:
 
     void run(int sampleCount)
     {
+       #if JucePlugin_LV2UseMonoAndStereoVariants
+        if (! hasNotifiedHostOfStereoOnlyParams)
+        {
+            hasNotifiedHostOfStereoOnlyParams = true;
+
+            if (host.ctrlPortStateUpdate != nullptr)
+            {
+                int port = numInputs + numOutputs + 1; // include reset but not bypass/enabled
+               #if JucePlugin_LV2WantsFreeWheel
+                ++port;
+               #endif
+               #if JucePlugin_LV2WantsLatency
+                ++port;
+               #endif
+               #if ! JucePlugin_LV2UseLegacyParameters
+                const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
+               #endif
+
+                for (int i = 0; i < numControls; ++i, ++port)
+                {
+                   #if JucePlugin_LV2UseLegacyParameters
+                    if (bypassParameterIndex != i)
+                   #else
+                    AudioProcessorParameter* const parameter = parameters.getUnchecked (i);
+
+                    if (parameter == bypassParameter)
+                   #endif
+                    {
+                        continue;
+                    }
+
+                   #if JucePlugin_LV2UseLegacyParameters
+                    const bool automatable = filter->isParameterAutomatable (i);
+                   #else
+                    const bool automatable = parameter->isAutomatable();
+                   #endif
+
+                    host.ctrlPortStateUpdate->update_state(
+                        host.ctrlPortStateUpdate->handle,
+                        static_cast<uint32_t>(port),
+                        automatable && host.isStereo ? LV2_CONTROL_PORT_STATE_NONE : LV2_CONTROL_PORT_STATE_INACTIVE);
+                }
+            }
+        }
+       #endif
+
         if (ports.reset != nullptr && *ports.reset > 0.5f)
         {
             filter->reset();
@@ -465,6 +511,9 @@ private:
     HeapBlock<float*> audioBuffers;
     MidiBuffer midiEvents;
     Array<float> lastControlValues; // includes bypass/enabled
+   #if JucePlugin_LV2UseMonoAndStereoVariants
+    bool hasNotifiedHostOfStereoOnlyParams = false;
+   #endif
 };
 
 static int doRecall(const char* libraryPath)
