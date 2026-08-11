@@ -349,7 +349,7 @@ public:
                     host.ctrlPortStateUpdate->update_state(
                         host.ctrlPortStateUpdate->handle,
                         static_cast<uint32_t>(port),
-                        automatable && host.isStereo ? LV2_CONTROL_PORT_STATE_NONE : LV2_CONTROL_PORT_STATE_INACTIVE);
+                        automatable ? LV2_CONTROL_PORT_STATE_NONE : LV2_CONTROL_PORT_STATE_INACTIVE);
                 }
             }
         }
