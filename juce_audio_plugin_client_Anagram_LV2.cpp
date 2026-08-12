@@ -926,8 +926,10 @@ static int doRecall(const char* libraryPath)
 
             if (parameter->isBoolean())
                 ttl << "\t\tlv2:portProperty lv2:toggled ;\n";
+           #if ! JucePlugin_LV2UseMonoAndStereoVariants
             if (! parameter->isAutomatable())
                 ttl << "\t\tlv2:portProperty pprop:expensive ;\n";
+           #endif
 
             if (const auto* anagramParameter = dynamic_cast<const anagram::AudioParameterWithScalePoints*> (parameter))
             {
