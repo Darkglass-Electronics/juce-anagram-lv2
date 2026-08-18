@@ -316,7 +316,7 @@ public:
 
             if (host.ctrlPortStateUpdate != nullptr)
             {
-                int port = numInputs + numOutputs + 1; // include reset but not bypass/enabled
+                int port = numInputs + numOutputs + 2; // include reset and bypass/enabled
                #if JucePlugin_LV2WantsFreeWheel
                 ++port;
                #endif
@@ -327,10 +327,10 @@ public:
                 const Array<AudioProcessorParameter*>& parameters = filter->getParameters();
                #endif
 
-                for (int i = 0; i < numControls; ++i, ++port)
+                for (int i = 0; i < numControls; ++i)
                 {
                    #if JucePlugin_LV2UseLegacyParameters
-                    if (bypassParameterIndex != i)
+                    if (bypassParameterIndex == i)
                    #else
                     AudioProcessorParameter* const parameter = parameters.getUnchecked (i);
 
@@ -348,8 +348,10 @@ public:
 
                     host.ctrlPortStateUpdate->update_state(
                         host.ctrlPortStateUpdate->handle,
-                        static_cast<uint32_t>(port),
+                        static_cast<uint32_t> (port),
                         automatable ? LV2_CONTROL_PORT_STATE_NONE : LV2_CONTROL_PORT_STATE_INACTIVE);
+
+                    ++port;
                 }
             }
         }
