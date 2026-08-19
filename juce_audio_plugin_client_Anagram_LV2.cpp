@@ -152,6 +152,22 @@ public:
                 return;
             }
         }
+
+        for (int i = 0; i < numControls; ++i)
+        {
+            AudioProcessorParameter* const parameter = parameters.getUnchecked (i);
+
+            using namespace anagram;
+
+            if (auto* parameterBool = dynamic_cast<AudioParameterDisabledInMono<AudioParameterBool>*> (parameter))
+                parameterBool->setAutomatable (isStereo);
+            else if (auto* parameterChoice = dynamic_cast<AudioParameterDisabledInMono<AudioParameterChoice>*> (parameter))
+                parameterChoice->setAutomatable (isStereo);
+            else if (auto* parameterInt = dynamic_cast<AudioParameterDisabledInMono<AudioParameterInt>*> (parameter))
+                parameterInt->setAutomatable (isStereo);
+            else if (auto* parameterFloat = dynamic_cast<AudioParameterDisabledInMono<AudioParameterFloat>*> (parameter))
+                parameterFloat->setAutomatable (isStereo);
+        }
        #endif
 
         numInputs = filter->getTotalNumInputChannels();
