@@ -48,15 +48,23 @@
 #include "lv2/control-port-state-update.h"
 #endif
 
-#if defined(__MOD_DEVICES__) && !JucePlugin_LV2IsFreeware
-#define ENABLE_MOD_LICENSING_API
-#include <libmodla.h>
+#ifdef LIBNICKEL_ENABLED
+#include <libnickel.h>
 #endif
 
 #include <fstream>
 
 namespace juce::anagram_lv2_client
 {
+
+#ifdef LIBNICKEL_ENABLED
+static constexpr const char* const kLicenseURIs[] = {
+    JucePlugin_LV2URI,
+   #if JucePlugin_LV2IsFreeware
+    "urn:darkglass:pablito",
+   #endif
+};
+#endif
 
 static inline String sanitiseStringAsSymbol (const String& input, int index)
 {
@@ -311,7 +319,7 @@ public:
 
         audioBuffers.calloc (std::max (numInputs, numOutputs));
 
-       #ifdef ENABLE_MOD_LICENSING_API
+       #ifdef LIBNICKEL_ENABLED
         licenseRunCount = 0;
        #endif
     }
@@ -376,7 +384,7 @@ public:
         if (ports.reset != nullptr && *ports.reset > 0.5f)
         {
             filter->reset();
-           #ifdef ENABLE_MOD_LICENSING_API
+           #ifdef LIBNICKEL_ENABLED
             licenseRunCount = 0;
            #endif
         }
@@ -463,8 +471,8 @@ public:
 
             const ScopedLock sl (filter->getCallbackLock());
 
-           #ifdef ENABLE_MOD_LICENSING_API
-            licenseRunCount = mod_license_run_begin(licenseRunCount, (uint32_t)sampleCount);
+           #ifdef LIBNICKEL_ENABLED
+            licenseRunCount = nickel_license_run_begin(licenseRunCount, (uint32_t)sampleCount);
            #endif
 
             if (filter->isSuspended())
@@ -477,9 +485,9 @@ public:
                 filter->processBlock (chans, midiEvents);
             }
 
-           #ifdef ENABLE_MOD_LICENSING_API
+           #ifdef LIBNICKEL_ENABLED
             for (int i = 0; i < numOutputs; ++i)
-                mod_license_run_silence(licenseRunCount, ports.audioOuts[i], (uint32_t)sampleCount, (uint32_t)i);
+                nickel_license_run_silence(licenseRunCount, ports.audioOuts[i], (uint32_t)sampleCount, (uint32_t)i);
            #endif
         }
     }
@@ -501,7 +509,7 @@ private:
     int numInputs = 0;
     int numOutputs = 0;
     int numControls = 0;
-   #ifdef ENABLE_MOD_LICENSING_API
+   #ifdef LIBNICKEL_ENABLED
     uint32_t licenseRunCount = 0;
    #endif
 
@@ -675,6 +683,7 @@ static int doRecall(const char* libraryPath)
                "@prefix doap:  <http://usefulinc.com/ns/doap#> .\n"
                "@prefix kx:    <http://kxstudio.sf.net/ns/lv2ext/props#> .\n"
                "@prefix foaf:  <http://xmlns.com/foaf/0.1/> .\n"
+               "@prefix licns: <http://www.darkglass.com/lv2/ns/lv2ext/license#> .\n"
                "@prefix lv2:   <" LV2_CORE_PREFIX "> .\n"
                "@prefix opts:  <" LV2_OPTIONS_PREFIX "> .\n"
                "@prefix pprop: <http://lv2plug.in/ns/ext/port-props#> .\n"
@@ -703,9 +712,10 @@ static int doRecall(const char* libraryPath)
                "\n"
                "\tlv2:requiredFeature bufs:boundedBlockLength , opts:options , urid:map ;\n"
                "\topts:requiredOption bufs:nominalBlockLength ;\n"
-              #ifdef ENABLE_MOD_LICENSING_API
-               "\tlv2:extensionData <http://moddevices.com/ns/ext/license#interface> ;\n"
-               "\tlv2:requiredFeature <http://moddevices.com/ns/ext/license#feature> ;\n"
+              #ifdef LIBNICKEL_ENABLED
+               "\tlv2:extensionData licns:interface ;\n"
+               "\tlv2:requiredFeature licns:feature ;\n"
+               "\tlicns:uri <" << StringArray(kLicenseURIs, std::size(kLicenseURIs)).joinIntoString("> , <") << "> ;\n"
               #endif
                "\n";
 
@@ -1121,13 +1131,11 @@ static LV2_Handle instantiate(const LV2_Descriptor* descriptor,
         return nullptr;
     }
 
-  #ifdef ENABLE_MOD_LICENSING_API
-   #if JucePlugin_LV2IsSystemBlock
-    mod_license_check(features, "urn:darkglass:pablito");
-   #else
-    mod_license_check(features, JucePlugin_LV2URI);
+   #ifdef LIBNICKEL_ENABLED
+    for (const char* const uri : kLicenseURIs)
+        if (nickel_init(sampleRate, features, uri))
+            break;
    #endif
-  #endif
 
    #if JucePlugin_LV2UseMonoAndStereoVariants
     bool isStereo = std::strcmp(descriptor->URI, JucePlugin_LV2URI "#stereo") == 0;
@@ -1192,8 +1200,8 @@ static const void* extension_data(const char* uri)
     if (std::strcmp(uri, "https://lv2-extensions.juce.com/turtle_recall") == 0)
         return &recall;
 
-   #ifdef ENABLE_MOD_LICENSING_API
-    return mod_license_interface(uri);
+   #ifdef LIBNICKEL_ENABLED
+    return nickel_license_interface(uri);
    #else
     return nullptr;
    #endif

@@ -97,13 +97,14 @@ function(juce_anagram_lv2_setup TARGET)
         PkgConfig::zlib
     )
 
-    # link against libmodla for licensing/copy-protection
-    if($ENV{CXXFLAGS} MATCHES "^.*-D__MOD_DEVICES__.*$" AND NOT _anagram_juce_plugin_IS_FREEWARE)
-      target_link_libraries(${TARGET}
-        PUBLIC
-          modla
-      )
-    endif()
+    # link against libnickel for licensing/copy-protection
+    target_compile_definitions(${TARGET} PUBLIC LIBNICKEL_ENABLED)
+    target_include_directories(${TARGET} PUBLIC "${JUCE_ANAGRAM_LV2_DIR}/libnickel")
+    target_link_libraries(${TARGET} PUBLIC
+      $<IF:$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,15>,
+           ${JUCE_ANAGRAM_LV2_DIR}/libnickel/libnickel-gcc15.a,
+           ${JUCE_ANAGRAM_LV2_DIR}/libnickel/libnickel-gcc9.a
+       >)
   endif()
 
   # add ourselves to the include directories, so we can override JUCE files
@@ -148,9 +149,6 @@ function(juce_anagram_lv2_setup TARGET)
   endif()
   if (_anagram_juce_plugin_IS_FREEWARE)
     target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2IsFreeware=1)
-  endif()
-  if (_anagram_juce_plugin_IS_SYSTEM_BLOCK)
-    target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2IsSystemBlock=1)
   endif()
   if (_anagram_juce_plugin_STYLING_TTL)
     target_compile_definitions(${TARGET}_LV2 PUBLIC JucePlugin_LV2CustomStylingTtl="${_anagram_juce_plugin_STYLING_TTL}")
