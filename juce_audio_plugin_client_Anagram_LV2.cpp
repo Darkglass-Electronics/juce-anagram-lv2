@@ -911,10 +911,21 @@ static int doRecall(const char* libraryPath)
                 min = range.start;
                 max = range.end;
 
-                ttl << "\t\tlv2:default "
-                    << std::to_string (rangedParameter->convertFrom0to1 (rangedParameter->getValue())) << " ;\n"
-                       "\t\tlv2:minimum " << std::to_string (min) << " ;\n"
-                       "\t\tlv2:maximum " << std::to_string (max) << " ;\n";
+                if (const auto* intParameter = dynamic_cast<const AudioParameterInt*>(rangedParameter))
+                {
+                    ttl << "\t\tlv2:default "
+                        << std::to_string (intParameter->get()) << " ;\n"
+                           "\t\tlv2:minimum " << std::to_string ((int) min) << " ;\n"
+                           "\t\tlv2:maximum " << std::to_string ((int) max) << " ;\n"
+                           "\t\tlv2:portProperty lv2:integer ;\n";
+                }
+                else
+                {
+                    ttl << "\t\tlv2:default "
+                        << std::to_string (rangedParameter->convertFrom0to1 (rangedParameter->getValue())) << " ;\n"
+                           "\t\tlv2:minimum " << std::to_string (min) << " ;\n"
+                           "\t\tlv2:maximum " << std::to_string (max) << " ;\n";
+                }
 
                 const String label = rangedParameter->label.toLowerCase();
 
